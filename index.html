@@ -209,7 +209,7 @@ const LEARN_STEPS=[1,10];
 const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
 const DECAY=-0.5, FACTOR=19/81;
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.3', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.4', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -440,8 +440,8 @@ function renderMore(){
     h('div',{class:'row'},h('button',{on:{click:async()=>{const t=packPrompt();try{await navigator.clipboard.writeText(t);toast('הבקשה הועתקה. הדבק אותה ל-Claude יחד עם הסיכום')}catch(e){prompt('העתק את הבקשה:',t)}}}},'העתק בקשה ל-Claude'),h('span',{class:'sub'},'בקשה מוכנה שמבטיחה תמהיל כרטיסים שבונה הבנה, לא רק שינון.')),
     h('p',{class:'sub'},'כאן מדביקים גם את ההתקדמות מהאתר הישן ב-Claude (כפתור "העברה לאפליקציה" בהגדרות שם), או קובץ גיבוי.'),
     ta,h('div',{class:'row'},
-      h('button',{class:'primary',on:{click:()=>{if(!ta.value.trim()){toast('אין מה לייבא');return}const r=importText(ta.value);imsg.className=r.ok?'sub':'warn';imsg.textContent=r.msg;if(r.ok){ta.value='';toast(r.msg)}}}},'ייבוא'),
-      h('label',{class:'row sub'},'או מקובץ',h('input',{type:'file',accept:'.json,application/json,text/plain',on:{change:async e=>{const f=e.target.files[0];if(!f)return;const r=importText(await f.text());imsg.className=r.ok?'sub':'warn';imsg.textContent=r.msg;if(r.ok)toast(r.msg)}}}))),imsg);
+      h('button',{class:'primary',on:{click:()=>{if(!ta.value.trim()){toast('אין מה לייבא');return}const r=importText(ta.value);imsg.className=r.ok?'sub':'warn';imsg.textContent=r.msg;if(r.ok){ta.value='';toast(r.msg);render()}}}},'ייבוא'),
+      h('label',{class:'row sub'},'או מקובץ',h('input',{type:'file',accept:'.json,application/json,text/plain',on:{change:async e=>{const f=e.target.files[0];if(!f)return;const r=importText(await f.text());imsg.className=r.ok?'sub':'warn';imsg.textContent=r.msg;if(r.ok){toast(r.msg);render()}}}}))),imsg);
   // backup
   const bak=h('section',{class:'panel stack'},h('h2',{},'גיבוי'),
     h('p',{class:'sub'},'קובץ עם כל ההתקדמות והשינויים בכרטיסים. אפשר לייבא אותו בחזרה בתיבה למעלה.'),
@@ -530,6 +530,8 @@ function startSession(){
   undoStack=[];
   const c=counts();
   const byL={};for(const x of CARDS)if(inFilter(x)&&isNew(x.id))(byL[x.t]=byL[x.t]||[]).push(x.id);
+  // keep sibling cards of the same note apart: all first blanks, then all second blanks, and so on
+  for(const k in byL){const l=byL[k];const pos=new Map(l.map((id,i)=>[id,i]));const rk=id=>Math.max(0,(BYID[id].n||1)-1);l.sort((a,b)=>(rk(a)-rk(b))||(pos.get(a)-pos.get(b)))}
   // reverse cards wait until the forward card is known
   const rr=[];const lists=LECS.map(l=>byL[l[0]]||[]);let k=0;const total=lists.reduce((a,b)=>a+b.length,0);
   while(rr.length<total){for(const a of lists)if(a[k])rr.push(a[k]);k++}
