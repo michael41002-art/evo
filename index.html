@@ -175,20 +175,30 @@ body{-webkit-tap-highlight-color:transparent}
 (function(){
 "use strict";
 document.documentElement.lang='he';
-const BASE=JSON.parse(document.getElementById('deck').textContent);
+const EVO_BASE=JSON.parse(document.getElementById('deck').textContent);
 const BASE_LECTURES=[
  ["הרצאה_1_הבנת_האבולוציה","הבנת האבולוציה"],
  ["הרצאה_2_ראיות_לאבולוציה","ראיות לאבולוציה"],
  ["הרצאה_3_מינים_והתמיינות","מינים והתמיינות"],
  ["הרצאה_4_עץ_החיים_ושונות","עץ החיים ושונות"]];
+const COURSES=[
+ {id:'evo',name:'מבוא לאבולוציה ואקולוגיה',short:'אבולוציה ואקולוגיה'},
+ {id:'cell',name:'ביולוגיה של התא',short:'ביולוגיה של התא'}];
+const LS_COURSE='evo-course';
+let COURSE=(()=>{try{const c=localStorage.getItem(LS_COURSE);return COURSES.some(x=>x.id===c)?c:'evo'}catch(e){return 'evo'}})();
+let BASE=[], CUR_LECTURES=[];
+function courseObj(){return COURSES.find(c=>c.id===COURSE)}
+// each course keeps its own cards, progress and settings; the evolution course keeps the original keys
+function sfx(){return COURSE==='evo'?'':':'+COURSE}
+function applyCourse(){BASE=COURSE==='evo'?EVO_BASE:[];CUR_LECTURES=COURSE==='evo'?BASE_LECTURES:[];LS_P='evo-srs-progress-v1'+sfx();LS_D='evo-srs-deck-v1'+sfx()}
 const IMG={finches:"ארבעה מיני חוחיות מגלפאגוס: צורת מקור שונה למזון שונה",fossils:"(א) גולגולות הומינידים, מהישנה לחדשה. (ב) מינים נכחדים מהסוג Equus",embryos:"עוברים של דג, סלמנדרה, צב, תרנגול, ארנב ואדם בשלבי התפתחות שונים",limbs:"אותן עצמות בגפה של אדם, כלב, ציפור ולווייתן: מבנים הומולוגיים",arctic:"שועל ארקטי ורוטגן: לבנים בחורף בלי מוצא משותף קרוב",gondwana:"מאובנים זהים ביבשות הדרומיות, שהיו מחוברות בגונדוואנה",dogs:"פודל, קוקר ספנייל והצאצא שלהם, קוקאפו",owls:"תפוצת הינשוף המנוקד הצפוני והינשוף המקסיקני",honeycreepers:"יונקי הדבש של הוואי: מין מייסד אחד והמינים שהתפתחו ממנו",autopoly:"אוטופוליפלואידיה: הורה דיפלואידי (2n) וצאצא פוליפלואידי (4n)",allopoly:"אלופוליפלואידיה: שתי הזדווגויות בין שני מינים יוצרות צאצא בר-קיימא",frogs:"שני מיני צפרדעים שמתרבים בעונות שונות",crickets:"G. pennsylvanicus מעדיף קרקע חולית, ו-G. firmus קרקע חרסית",damselfly:"צורות שונות של איבר הרבייה בזכרי שפיריות ממינים שונים",pollinators:"(א) דבורה בפרח אצבעונית. (ב) יונק דבש בפרח חצוצרה",cichlids:"ציקלידים עם שפתיים דקות ועם שפתיים עבות, אגם אפויאק","darwin-tree":"(א) האיור היחיד ב\"על מוצא המינים\". (ב) התפתחות הפילים מהפליאומסטודון","tree-of-life":"עץ החיים: חיידקים, ארכאונים ואאוקריוטים",vents:"נביעה הידרותרמית במעמקי האוקיינוס",oxygen:"רמת החמצן באטמוספירה לאורך 4 מיליארד שנה",oaks:"שני עצי אלון: ההבדל ביניהם נובע מגנים ומסביבה",kittens:"שונות בצבע הפרווה בהמלטה אחת"};
 const MIN=60e3, HOUR=3600e3, DAY=86400e3, ROLL=4;
 const LEARN_STEPS=[1,10];
 // FSRS-4.5 default parameters
 const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
 const DECAY=-0.5, FACTOR=19/81;
-const LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.1', NTFY_TOPIC='evo-vrthhej25epj';
+let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
+const APP_VERSION='1.2', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -211,7 +221,8 @@ function daysToExam(){const e=P.settings.examDate;if(!e)return null;const [y,m,d
 
 // ---------- deck model ----------
 function rebuild(){
-  LECS=[...BASE_LECTURES,...(D.lectures||[]).map(l=>[l.key,l.name])];
+  LECS=[...CUR_LECTURES,...(D.lectures||[]).map(l=>[l.key,l.name])];
+  if(!LECS.length)LECS=[['general','כללי']];
   const notes=[];
   for(const b of BASE){const e=D.edits[b.id];if(e&&e.del)continue;notes.push(Object.assign({},b,e||{}))}
   for(const a of D.added||[]){const e=D.edits[a.id];if(e&&e.del)continue;notes.push(Object.assign({},a,e||{}))}
@@ -257,10 +268,10 @@ async function flush(which){
   if(busy[which]){again[which]=true;return}
   busy[which]=true;pend[which]=false;clearTimeout(timers[which]);
   const data=JSON.parse(JSON.stringify(which==='progress'?P:D));
-  const body={action:'put',which,data};if(which==='progress')body.summary=remindSummary();
+  const crs=COURSE;const body={action:'put',which:which+sfx(),data};if(which==='progress')body.summary=remindSummary();
   try{
     const j=await api(body);
-    if(j.stale&&j.data){ // another device saved something newer
+    if(j.stale&&j.data&&crs===COURSE){ // another device saved something newer
       if(which==='progress'){P=normP(j.data);lsSave(LS_P,P)}else{D=normD(j.data);lsSave(LS_D,D)}
       rebuild();if(view!=='study')render();
     }
@@ -274,7 +285,7 @@ async function pull(){
   if(!SYNC_URL){syncState='local';updateSync();return}
   syncState='loading';updateSync();
   try{
-    const j=await api({action:'get'});let changed=false;
+    const crs=COURSE;const j=await api({action:'get',course:COURSE});if(crs!==COURSE)return;let changed=false;
     if(j.progress){const r=normP(j.progress);if(r.updatedAt>P.updatedAt){P=r;lsSave(LS_P,P);changed=true}else if(r.updatedAt<P.updatedAt)flush('progress')}else if(P.updatedAt)flush('progress');
     if(j.deck){const r=normD(j.deck);if(r.updatedAt>D.updatedAt){D=r;lsSave(LS_D,D);changed=true}else if(r.updatedAt<D.updatedAt)flush('deck')}else if(D.updatedAt)flush('deck');
     syncState='synced';if(changed){rebuild();if(view!=='study')render()}
@@ -329,6 +340,7 @@ function importText(raw){
       if(ex)key=ex[0];else{key=key||('L'+Date.now().toString(36));D.lectures.push({key,name:o.lecture.name})}
     }
     if(!key)key=LECS[LECS.length-1][0];
+    if(key==='general'&&!D.lectures.some(l=>l.key==='general'))D.lectures.push({key:'general',name:'כללי'});
     const have=new Set([...BASE.map(b=>b.id),...D.added.map(a=>a.id)]);let n=0,i=0;
     for(const x of o.cards){i++;
       const id=x.id||('u'+Date.now().toString(36)+i);if(have.has(id))continue;
@@ -342,7 +354,7 @@ function importText(raw){
 }
 function downloadBackup(){
   const blob=new Blob([JSON.stringify({type:'evo-backup',v:1,progress:P,deck:D})],{type:'application/json'});
-  const a=h('a',{href:URL.createObjectURL(blob),download:'evo-backup-'+today()+'.json'});document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+  const a=h('a',{href:URL.createObjectURL(blob),download:'study-backup-'+COURSE+'-'+today()+'.json'});document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
 }
 const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
@@ -406,6 +418,7 @@ function renderMore(){
   const imsg=h('p',{role:'status'});
   const imp=h('section',{class:'panel stack'},h('h2',{},'הוספת חומר וייבוא'),
     h('p',{},'הרצאה חדשה: שלח ל-Claude את הסיכום ובקש "חבילת כרטיסים לאפליקציה". הדבק כאן את מה שתקבל.'),
+    h('p',{class:'sub'},'הכרטיסים וההתקדמות יתווספו לקורס: ',h('b',{},courseObj().name),'. להוספה לקורס אחר, בחר אותו למעלה.'),
     h('p',{class:'sub'},'כאן מדביקים גם את ההתקדמות מהאתר הישן ב-Claude (כפתור "העברה לאפליקציה" בהגדרות שם), או קובץ גיבוי.'),
     ta,h('div',{class:'row'},
       h('button',{class:'primary',on:{click:()=>{if(!ta.value.trim()){toast('אין מה לייבא');return}const r=importText(ta.value);imsg.className=r.ok?'sub':'warn';imsg.textContent=r.msg;if(r.ok){ta.value='';toast(r.msg)}}}},'ייבוא'),
@@ -641,13 +654,23 @@ function buildQuiz(){
 // ---------- rendering ----------
 function render(){
   const y=window.scrollY;app.innerHTML='';
-  app.append(h('div',{class:'top'},h('div',{},h('h1',{},'מבוא לאבולוציה ואקולוגיה'),h('div',{class:'sub'},CARDS.length+' כרטיסים · חזרה מרווחת')),h('div',{class:'sync',id:'sync'})));
+  app.append(h('div',{class:'top'},h('div',{},h('h1',{},courseObj().name),h('div',{class:'sub'},CARDS.length+' כרטיסים · חזרה מרווחת')),h('div',{class:'sync',id:'sync'})));
   if(view!=='study'){
+    app.append(h('div',{class:'chips',role:'group','aria-label':'קורס',style:'margin-bottom:10px'},...COURSES.map(c=>h('button',{class:'chip','aria-pressed':String(COURSE===c.id),on:{click:()=>switchCourse(c.id)}},c.short))));
     const tabs=[['home','לימוד'],['quiz','בוחן אמריקאי'],['browse','כל הכרטיסים'],['more','הגדרות']];
     app.append(h('nav',{class:'nav'},...tabs.map(([k,v])=>h('button',{'aria-current':view===k?'page':false,on:{click:()=>{view=k;if(k==='quiz')quiz=null;render();window.scrollTo(0,0)}}},v))));
   }
   ({home:renderHome,study:renderStudy,quiz:renderQuiz,browse:renderBrowse,more:renderMore}[view])();
   updateSync();if(view==='browse'||view==='home')window.scrollTo(0,y);
+}
+function switchCourse(id){
+  if(id===COURSE)return;
+  lsSave(LS_P,P);lsSave(LS_D,D);flushPending();
+  COURSE=id;try{localStorage.setItem(LS_COURSE,id)}catch(e){}
+  applyCourse();P=blankProgress();D=blankDeck();
+  lecFilter='all';session=null;quiz=null;editing=null;browseQ='';undoStack=[];if(view==='study')view='home';
+  const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);
+  rebuild();render();window.scrollTo(0,0);pull();
 }
 function lecChips(){return h('div',{class:'chips'},[['all','כל ההרצאות'],...LECS.map(([k])=>[k,lecShort(k)])].map(([k,v])=>h('button',{class:'chip','aria-pressed':String(lecFilter===k),on:{click:()=>{lecFilter=k;if(view==='quiz')quiz=null;render()}}},v)))}
 
@@ -811,7 +834,7 @@ document.addEventListener('keydown',e=>{
 });
 window.addEventListener('pagehide',()=>{lsSave(LS_P,P);lsSave(LS_D,D);flushPending()});
 
-rebuild();render();initStore();
+applyCourse();rebuild();render();initStore();
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 })();
 </script>

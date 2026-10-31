@@ -1,5 +1,5 @@
 // Offline cache: the app shell and images load from the cache, then refresh in the background.
-const CACHE='evo-v2';
+const CACHE='evo-v3';
 const SYNC_DEFAULT='https://script.google.com/macros/s/AKfycbwGq0VAIy4YE9NWPalbeyqefTW4mzGWDF8DUts6RSU79AMyEbxkhUhW8mW1T8KNCy-o/exec';
 const SHELL=['./','index.html','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/apple-touch-icon.png',
  'img/allopoly.webp','img/arctic.webp','img/autopoly.webp','img/cichlids.webp','img/crickets.webp','img/damselfly.webp','img/darwin-tree.webp',
