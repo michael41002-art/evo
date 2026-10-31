@@ -120,6 +120,17 @@ details[open] summary{margin-bottom:12px}
 .note{font-size:1rem;color:var(--ink);background:var(--bg);border-radius:10px;padding:10px 14px;line-height:1.6;white-space:pre-line}
 .note b{display:block;font-size:.78rem;color:var(--muted);letter-spacing:.04em;font-weight:600;margin-bottom:2px}
 .note.ai{border-inline-start:3px solid var(--ai)}
+details.note summary{cursor:pointer;font-size:.88rem;color:var(--muted);font-weight:600}
+details.note[open] summary{margin-bottom:4px}
+.note.mine{border-inline-start:3px solid var(--accent)}
+.conf{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.conf button{padding:12px 6px;font-size:1rem}
+.conf .lbl{grid-column:1/-1;font-size:.85rem;color:var(--muted);text-align:center}
+.opts button.sel{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.terms{display:flex;flex-wrap:wrap;gap:6px}
+.terms span{border-radius:999px;padding:3px 10px;font-size:.88rem;border:1px solid var(--line)}
+.terms .hit{border-color:var(--good);color:var(--good)}
+.terms .miss{border-color:var(--again);color:var(--again)}
 .note.ai b{color:var(--ai)}
 figure{margin:0;display:flex;flex-direction:column;gap:4px}
 figure img{max-width:100%;max-height:340px;object-fit:contain;border-radius:8px;background:#fff;align-self:center}
@@ -198,18 +209,18 @@ const LEARN_STEPS=[1,10];
 const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
 const DECAY=-0.5, FACTOR=19/81;
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.2', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.3', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
 let view='home', lecFilter='all', session=null, quiz=null, revealed=false, typed='', undoStack=[], editing=null;
-let check=null;
+let check=null, conf=null, pmode='mcq', recall=null, exam=null;
 let browseQ='';
 let NOTES=[], NBYID={}, CARDS=[], BYID={}, LECS=[];
 let syncState='local';
 const app=document.getElementById('app');
 
-function blankProgress(){return {v:1,updatedAt:0,cards:{},log:{},settings:{newPerDay:15,typeAnswer:false,reverse:true,retention:0.9,examDate:'',autoPace:true}}}
+function blankProgress(){return {v:1,updatedAt:0,cards:{},log:{},recall:[],exams:[],settings:{newPerDay:15,typeAnswer:false,reverse:true,retention:0.9,examDate:'',autoPace:true}}}
 function blankDeck(){return {v:1,updatedAt:0,edits:{},added:[],lectures:[]}}
 function pad(n){return String(n).padStart(2,'0')}
 function dayKeyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
@@ -294,7 +305,7 @@ async function pull(){
 }
 function updateSync(){const s=document.getElementById('sync');if(!s)return;
   s.textContent={local:'ההתקדמות נשמרת רק במכשיר הזה',loading:'מסנכרן…',synced:'ההתקדמות מסונכרנת ✓',error:'אין חיבור כרגע. ההתקדמות נשמרת במכשיר ותסונכרן אחר כך'}[syncState]}
-function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},settings:Object.assign(b.settings,p.settings||{})}}
+function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],exams:p.exams||[],settings:Object.assign(b.settings,p.settings||{})}}
 function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d.added||[],lectures:d.lectures||[]}}
 async function initStore(){
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);rebuild();render();
@@ -351,6 +362,13 @@ function importText(raw){
     return {ok:true,msg:n?n+' כרטיסים חדשים נוספו.':'כל הכרטיסים האלה כבר קיימים.'};
   }
   return {ok:false,msg:'זה לא נראה כמו גיבוי או חבילת כרטיסים.'};
+}
+function packPrompt(){
+  return 'צור חבילת כרטיסים לאפליקציית החזרות שלי, לקורס "'+courseObj().name+'", מתוך סיכום ההרצאה שאצרף.\n\n'+
+  'עקרונות:\n- כל כרטיס בודק רעיון אחד. תשובה קצרה: מילה, מונח או משפט אחד.\n- לכל כרטיס הסבר קצר (1–3 משפטים) שמסביר למה, ומקשר לרעיון אחר מההרצאה כשאפשר.\n- נסח במילים שלך, לא העתקה מהסיכום, כדי שאצטרך להבין ולא לזהות ניסוח.\n- כסה את כל הרעיונות החשובים בהרצאה, כולל דוגמאות שהמרצה נתן.\n\n'+
+  'תמהיל:\n- כ-25% מושגים והגדרות ("מהו X?").\n- כ-30% מנגנון וסיבתיות ("למה…?", "איך…?", "מה יקרה אם…?").\n- כ-20% השוואה והבחנה בין מושגים שקל לבלבל.\n- כ-15% יישום על דוגמה או תרחיש חדש שלא הופיע בהרצאה.\n- כ-10% השלמת חסר במשפטי מפתח.\n\n'+
+  'פורמט: JSON בלבד בבלוק קוד אחד, בדיוק במבנה הזה:\n'+
+  '{"type":"evo-cards","lecture":{"name":"<שם ההרצאה>"},"cards":[{"type":"qa","front":"שאלה","back":"תשובה","extra":"הסבר"},{"type":"cloze","text":"משפט עם {{c1::המילה החסרה}}","extra":"הסבר"}]}';
 }
 function downloadBackup(){
   const blob=new Blob([JSON.stringify({type:'evo-backup',v:1,progress:P,deck:D})],{type:'application/json'});
@@ -419,6 +437,7 @@ function renderMore(){
   const imp=h('section',{class:'panel stack'},h('h2',{},'הוספת חומר וייבוא'),
     h('p',{},'הרצאה חדשה: שלח ל-Claude את הסיכום ובקש "חבילת כרטיסים לאפליקציה". הדבק כאן את מה שתקבל.'),
     h('p',{class:'sub'},'הכרטיסים וההתקדמות יתווספו לקורס: ',h('b',{},courseObj().name),'. להוספה לקורס אחר, בחר אותו למעלה.'),
+    h('div',{class:'row'},h('button',{on:{click:async()=>{const t=packPrompt();try{await navigator.clipboard.writeText(t);toast('הבקשה הועתקה. הדבק אותה ל-Claude יחד עם הסיכום')}catch(e){prompt('העתק את הבקשה:',t)}}}},'העתק בקשה ל-Claude'),h('span',{class:'sub'},'בקשה מוכנה שמבטיחה תמהיל כרטיסים שבונה הבנה, לא רק שינון.')),
     h('p',{class:'sub'},'כאן מדביקים גם את ההתקדמות מהאתר הישן ב-Claude (כפתור "העברה לאפליקציה" בהגדרות שם), או קובץ גיבוי.'),
     ta,h('div',{class:'row'},
       h('button',{class:'primary',on:{click:()=>{if(!ta.value.trim()){toast('אין מה לייבא');return}const r=importText(ta.value);imsg.className=r.ok?'sub':'warn';imsg.textContent=r.msg;if(r.ok){ta.value='';toast(r.msg)}}}},'ייבוא'),
@@ -436,6 +455,8 @@ function renderMore(){
 }
 function homeBanners(){
   const out=[];
+  const dlx=daysToExam();
+  if(dlx!=null&&dlx>=1&&dlx<=10)out.push(h('div',{class:'banner'},h('span',{},(dlx===1?'מחר המבחן':dlx+' ימים למבחן')+'. מעבר לחזרות: מבחן מסכם אחד ביום, ושליפה חופשית על ההרצאה החלשה.'),h('button',{on:{click:()=>{view='quiz';pmode='exam';exam=null;render();window.scrollTo(0,0)}}},'למבחן מסכם')));
   if(!SYNC_URL)out.push(h('div',{class:'banner'},h('span',{},'הסנכרון עוד לא מחובר, ההתקדמות נשמרת רק במכשיר הזה.'),h('button',{on:{click:()=>{view='more';render();window.scrollTo(0,0)}}},'לחיבור')));
   return out;
 }
@@ -523,7 +544,7 @@ function startCram(scope){
   session={mode:'cram',queue:ids,done:0,again:0,total:ids.length,cur:null};view='study';nextCard();
 }
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function resetCardUI(){revealed=false;typed='';check=null;editing=null}
+function resetCardUI(){revealed=false;typed='';check=null;editing=null;conf=null}
 function nextCard(){
   resetCardUI();
   if(session.mode==='cram'){session.cur=session.queue[0]||null;render();return}
@@ -548,6 +569,8 @@ function answer(g){
   const lg=logToday();const prevLog=Object.assign({},lg);
   const wasNew=!prev, wasReview=prev&&prev.q==='review';
   P.cards[id]=schedule(id,g,now,false);
+  // metacognition: how well did the prediction before the reveal match the result?
+  if(conf){P.cards[id].cf=conf;lg['c_'+conf]=(lg['c_'+conf]||0)+1;if(g>1)lg['k_'+conf]=(lg['k_'+conf]||0)+1;if(conf==='sure'&&g===1)P.cards[id].ill=(P.cards[id].ill||0)+1}
   lg.t++;if(wasNew)lg.n++;if(wasReview){lg.r++;if(g>1)lg.ok++}
   if(wasNew)session.newQueue=session.newQueue.filter(x=>x!==id);
   undoStack.push({id,prev,prevLog,day:today(),wasNew});if(undoStack.length>20)undoStack.shift();
@@ -562,7 +585,9 @@ function undo(){
 }
 
 // ---------- stats ----------
-function weakCards(){return CARDS.filter(c=>{const s=st(c.id);return s&&((s.lapses||0)>=2||(s.D!=null&&s.D>=8.5))}).sort((a,b)=>(st(b.id).lapses||0)-(st(a.id).lapses||0))}
+function weakCards(){return CARDS.filter(c=>{const s=st(c.id);return s&&((s.lapses||0)>=2||(s.ill||0)>=1||(s.D!=null&&s.D>=8.5))}).sort((a,b)=>((st(b.id).lapses||0)+(st(b.id).ill||0))-((st(a.id).lapses||0)+(st(a.id).ill||0)))}
+function calib(){const cut=dayKey(Date.now()-30*DAY);const o={sure:[0,0],unsure:[0,0],none:[0,0]};for(const [k,v] of Object.entries(P.log))if(k>=cut)for(const c in o){o[c][0]+=v['c_'+c]||0;o[c][1]+=v['k_'+c]||0}return o}
+function advance(ids){let n=0;const now=Date.now();for(const id of new Set(ids)){const s=P.cards[id];if(s&&s.q==='review'&&s.due>now){s.due=now;n++}}if(n)persist('progress');return n}
 function streak(){let n=0;const t=new Date(Date.now()-ROLL*HOUR);if(!(P.log[dayKeyOf(t)]?.t))t.setDate(t.getDate()-1);
   for(;;){if(P.log[dayKeyOf(t)]?.t){n++;t.setDate(t.getDate()-1)}else break}return n}
 function retention(){let r=0,ok=0;const cut=dayKey(Date.now()-30*DAY);for(const [k,v] of Object.entries(P.log))if(k>=cut){r+=v.r||0;ok+=v.ok||0}return r?Math.round(100*ok/r):null}
@@ -634,12 +659,12 @@ function editorEl(note,onDone){
 }
 
 // ---------- quiz (multiple choice) ----------
-function buildQuiz(){
+function buildQuiz(count){
   const pool=[];
   const defs=NOTES.filter(n=>n.k==='qa'&&termOf(n));
   for(const n of defs){if(lecFilter!=='all'&&n.t!==lecFilter)continue;pool.push({kind:'def',n,answer:termOf(n),prompt:n.b,ask:'איזה מושג מתאים להגדרה?'})}
   for(const c of CARDS){if(c.k!=='cz'||!inFilter(c))continue;const n=NBYID[c.nid];const a=clozeAnswer(n.x,c.n);if(a.length>40)continue;pool.push({kind:'cz',n,c,answer:a,promptHtml:clozeFront(n.x,c.n),ask:'השלם את החסר'})}
-  const qs=shuffle(pool).slice(0,10).map(item=>{
+  const qs=shuffle(pool).slice(0,count||10).map(item=>{
     const same=item.kind==='def'?defs.map(d=>termOf(d)):CARDS.filter(x=>x.k==='cz').map(x=>clozeAnswer(NBYID[x.nid].x,x.n)).filter(a=>a.length<=40);
     const lecOf=item.kind==='def'?defs.filter(d=>d.t===item.n.t).map(d=>termOf(d)):CARDS.filter(x=>x.k==='cz'&&x.t===item.n.t).map(x=>clozeAnswer(NBYID[x.nid].x,x.n));
     const ok=a=>norm(a)!==norm(item.answer)&&!norm(item.answer).includes(norm(a))&&!norm(a).includes(norm(item.answer));
@@ -657,8 +682,8 @@ function render(){
   app.append(h('div',{class:'top'},h('div',{},h('h1',{},courseObj().name),h('div',{class:'sub'},CARDS.length+' כרטיסים · חזרה מרווחת')),h('div',{class:'sync',id:'sync'})));
   if(view!=='study'){
     app.append(h('div',{class:'chips',role:'group','aria-label':'קורס',style:'margin-bottom:10px'},...COURSES.map(c=>h('button',{class:'chip','aria-pressed':String(COURSE===c.id),on:{click:()=>switchCourse(c.id)}},c.short))));
-    const tabs=[['home','לימוד'],['quiz','בוחן אמריקאי'],['browse','כל הכרטיסים'],['more','הגדרות']];
-    app.append(h('nav',{class:'nav'},...tabs.map(([k,v])=>h('button',{'aria-current':view===k?'page':false,on:{click:()=>{view=k;if(k==='quiz')quiz=null;render();window.scrollTo(0,0)}}},v))));
+    const tabs=[['home','לימוד'],['quiz','תרגול'],['browse','כל הכרטיסים'],['more','הגדרות']];
+    app.append(h('nav',{class:'nav'},...tabs.map(([k,v])=>h('button',{'aria-current':view===k?'page':false,on:{click:()=>{view=k;if(k==='quiz'){quiz=null;exam=null;recall=null}render();window.scrollTo(0,0)}}},v))));
   }
   ({home:renderHome,study:renderStudy,quiz:renderQuiz,browse:renderBrowse,more:renderMore}[view])();
   updateSync();if(view==='browse'||view==='home')window.scrollTo(0,y);
@@ -672,7 +697,7 @@ function switchCourse(id){
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);
   rebuild();render();window.scrollTo(0,0);pull();
 }
-function lecChips(){return h('div',{class:'chips'},[['all','כל ההרצאות'],...LECS.map(([k])=>[k,lecShort(k)])].map(([k,v])=>h('button',{class:'chip','aria-pressed':String(lecFilter===k),on:{click:()=>{lecFilter=k;if(view==='quiz')quiz=null;render()}}},v)))}
+function lecChips(){return h('div',{class:'chips'},[['all','כל ההרצאות'],...LECS.map(([k])=>[k,lecShort(k)])].map(([k,v])=>h('button',{class:'chip','aria-pressed':String(lecFilter===k),on:{click:()=>{lecFilter=k;if(view==='quiz'){quiz=null;exam=null;recall=null}render()}}},v)))}
 
 function renderHome(){
   const c=counts();const total=c.newAvail+c.learn+c.review;
@@ -704,7 +729,11 @@ function renderHome(){
     h('div',{class:'stats'},
       h('div',{class:'stat'},h('b',{},(P.log[today()]?.t||0)),h('span',{},'תשובות היום')),
       h('div',{class:'stat'},h('b',{},stk+(stk===1?' יום':' ימים')),h('span',{},'רצף למידה')),
-      h('div',{class:'stat'},h('b',{},ret==null?'–':ret+'%'),h('span',{},'זכירה ב-30 יום'))));
+      h('div',{class:'stat'},h('b',{},ret==null?'–':ret+'%'),h('span',{},'זכירה ב-30 יום'))),
+    (()=>{const cb=calib();const pc=a=>a[0]?Math.round(100*a[1]/a[0])+'%':'–';if(!(cb.sure[0]+cb.unsure[0]+cb.none[0]))return null;
+      return h('div',{class:'stack',style:'gap:4px;margin-top:10px'},h('b',{style:'font-size:.95rem'},'כמה מדויקת ההערכה העצמית שלך'),
+        h('p',{class:'sub',style:'margin:0'},'כשאמרת "יודע" ידעת ב-'+pc(cb.sure)+' מהמקרים · "לא בטוח": '+pc(cb.unsure)+' · "אין לי מושג": '+pc(cb.none)+'.'),
+        h('p',{class:'sub',style:'margin:0'},cb.sure[0]>=10&&cb.sure[1]/cb.sure[0]<0.85?'אתה נוטה להעריך יתר. כרטיסים שהיית בטוח בהם וטעית מסומנים ב"כרטיסים קשים".':'ככל שהאחוזים מתרחקים זה מזה, אתה מכיר טוב יותר את מה שאתה יודע.'))})());
   const lecs=h('section',{class:'panel'},h('h2',{},'לפי הרצאה'),
     ...LECS.map(([L])=>{const s=lecStats(L);if(!s.tot)return null;const pct=x=>(100*x/s.tot)+'%';
       return h('div',{class:'lec'},h('div',{class:'lechead'},h('span',{},lecName(L)),h('span',{},(s.m+s.y)+'/'+s.tot+' נלמדו')),
@@ -718,9 +747,9 @@ function renderHome(){
   const weak=weakCards();
   const weakP=h('section',{class:'panel'},h('h2',{},'כרטיסים קשים'),
     weak.length?h('div',{class:'stack'},
-      h('ul',{class:'weak'},...weak.slice(0,8).map(c=>{const q=cardQA(c);return h('li',{},h('span',{},c.k==='cz'?q.answer+' · '+plain(q.n.x).slice(0,60)+'…':(c.k==='rev'?q.answer:q.n.f)),h('span',{class:'lapses'},'נשכח '+(st(c.id).lapses||0)+'×'))})),
+      h('ul',{class:'weak'},...weak.slice(0,8).map(c=>{const q=cardQA(c);return h('li',{},h('span',{},c.k==='cz'?q.answer+' · '+plain(q.n.x).slice(0,60)+'…':(c.k==='rev'?q.answer:q.n.f)),h('span',{class:'lapses'},(st(c.id).ill?'בטוח וטעית '+st(c.id).ill+'× · ':'')+'נשכח '+(st(c.id).lapses||0)+'×'))})),
       h('div',{class:'row'},h('button',{on:{click:()=>startCram('weak')}},'תרגול ממוקד ב-'+weak.length+' הקשים'),h('span',{class:'sub'},'לא משנה את לוח החזרות')))
-    :h('p',{class:'sub'},'כרטיס שתשכח פעמיים יופיע כאן, ותוכל לתרגל אותו בנפרד.'));
+    :h('p',{class:'sub'},'כרטיס שתשכח פעמיים, או שהיית בטוח בו וטעית, יופיע כאן ותוכל לתרגל אותו בנפרד.'));
   const reset=h('button',{class:'danger',on:{click:()=>{if(!reset.classList.contains('arm')){reset.classList.add('arm');reset.textContent='בטוח? כל ההתקדמות תימחק';setTimeout(()=>{reset.classList.remove('arm');reset.textContent='אפס התקדמות'},3500);return}
     const s=P.settings;P=blankProgress();P.settings=s;persist('progress');render();toast('ההתקדמות אופסה')}}},'אפס התקדמות');
   const S=P.settings;
@@ -731,7 +760,8 @@ function renderHome(){
       h('label',{for:'typeAnswer'},'להקליד תשובה לפני החשיפה',h('input',{type:'checkbox',id:'typeAnswer',checked:S.typeAnswer,on:{change:e=>{S.typeAnswer=e.target.checked;persist('progress')}}})),
       h('label',{for:'reverse'},'כרטיסים הפוכים (הגדרה ← מושג)',h('input',{type:'checkbox',id:'reverse',checked:S.reverse,on:{change:e=>{S.reverse=e.target.checked;persist('progress');rebuild();render()}}})),
       h('p',{class:'sub'},'התזמון מבוסס על FSRS, האלגוריתם של אנקי החדש. הוא מעריך לכל כרטיס כמה זמן תזכור אותו, ומחזיר אותו כשהסיכוי לזכור יורד ליעד הזכירה. יעד גבוה יותר פירושו יותר חזרות.'),
-      h('p',{class:'sub'},'נסה להיזכר לפני החשיפה ודרג ביושר. "שוב" פירושו שלא נזכרת, "קשה" שנזכרת במאמץ, "טוב" שנזכרת, ו"קל" שזה היה מיידי. כמה דקות כל יום עדיפות על לימוד מרוכז לפני המבחן.'),
+      h('p',{class:'sub'},'נסה להיזכר לפני החשיפה, ואמור לעצמך עד כמה אתה בטוח. אחר כך דרג ביושר: "שוב" פירושו שלא נזכרת, "קשה" שנזכרת במאמץ, "טוב" שנזכרת, ו"קל" שזה היה מיידי. כמה דקות כל יום עדיפות על לימוד מרוכז לפני המבחן.'),
+      h('p',{class:'sub'},'בלשונית "תרגול": שליפה חופשית אחרי כל הרצאה (כתוב כל מה שאתה זוכר ובדוק מה חסר), ומבחן מסכם בשבועות שלפני המבחן. כרטיס שחוזר ונשכח יבקש ממך רמז במילים שלך.'),
       h('div',{},reset))));
   app.append(h('div',{class:'stack'},...homeBanners(),hero,exam,stats,lecs,fcs,weakP,set));
 }
@@ -769,21 +799,114 @@ function cardView(c){
     const ans=h('div',{class:'answer'});
     if(c.k!=='cz')ans.append(h('div',{class:'a'},q.answer));
     if(typed.trim()&&check)ans.append(h('div',{class:'cmp '+check.state,role:'status'},({ok:'✓ ',part:'≈ ',no:'✗ ',wait:''}[check.state])+'כתבת: '+typed+(check.text?' · '+check.text:'')));
-    if(q.extra)ans.append(h('div',{class:'note'},h('b',{},'הסבר'),q.extra));
+    if(q.n.my)ans.append(h('div',{class:'note mine'},h('b',{},'הרמז שלך'),q.n.my));
+    // review cards: try to explain it yourself before reading the explanation
+    if(q.extra){if(s&&s.q==='review'&&session.mode==='srs')ans.append(h('details',{class:'note'},h('summary',{},'הסבר · קודם נסה להסביר לעצמך למה זה נכון'),q.extra));
+      else ans.append(h('div',{class:'note'},h('b',{},'הסבר'),q.extra))}
+    if(s&&((s.lapses||0)>=3||(s.ill||0)>=2)&&!q.n.my){
+      const mi=h('input',{type:'text',dir:'auto',placeholder:'קשר, דימוי, ראשי תיבות, דוגמה מהחיים…',style:'flex:1;min-width:0'});
+      ans.append(h('div',{class:'note mine stack',style:'gap:6px'},h('b',{},'הכרטיס הזה חוזר ונשכח'),
+        h('span',{class:'sub'},'רמז שתכתוב במילים שלך נזכר טוב יותר מכל הסבר מוכן. הוא יופיע מעכשיו בכל חזרה.'),
+        h('div',{class:'row'},mi,h('button',{on:{click:()=>{const v=mi.value.trim();if(!v)return;saveNote(q.n.id,{my:v});toast('הרמז נשמר');render()}}},'שמור רמז'))));
+    }
     if(q.n.img&&IMG[q.n.img])ans.append(h('figure',{},h('img',{src:'img/'+q.n.img+'.webp',alt:IMG[q.n.img],loading:'lazy'}),h('figcaption',{},IMG[q.n.img])));
     card.append(ans);
   }
   const wrap=h('div',{class:'stack'},card);
-  if(!revealed)wrap.append(h('button',{class:'primary reveal',id:'revealBtn',on:{click:reveal}},'הצג תשובה'));
+  if(!revealed)wrap.append(h('div',{class:'conf'},h('div',{class:'lbl'},'קודם נסה להיזכר. עד כמה אתה בטוח?'),
+    h('button',{class:'primary',id:'revealBtn',on:{click:()=>reveal('sure')}},'יודע'),
+    h('button',{on:{click:()=>reveal('unsure')}},'לא בטוח'),
+    h('button',{on:{click:()=>reveal('none')}},'אין לי מושג')));
   else{const labels=['שוב','קשה','טוב','קל'];const sug=check&&{ok:3,part:2,no:1}[check.state];
     wrap.append(h('div',{class:'grades'},...[1,2,3,4].map(g=>h('button',{class:'g'+g+(sug===g?' sug':''),on:{click:()=>answer(g)}},labels[g-1],session.mode==='srs'?h('small',{},previewLabel(c.id,g)):null))))}
-  wrap.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול':'מקש רווח לחשיפה'));
+  wrap.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול':'מקשים: 1 יודע · 2 לא בטוח · 3 אין לי מושג'));
   if(inp)setTimeout(()=>inp.focus(),0);
   return wrap;
 }
-function reveal(){if(!session||!session.cur||revealed)return;revealed=true;const c=BYID[session.cur];if(P.settings.typeAnswer&&typed.trim())localCheck(c);render()}
+function reveal(cf){if(!session||!session.cur||revealed)return;revealed=true;conf=cf||null;const c=BYID[session.cur];if(P.settings.typeAnswer&&typed.trim())localCheck(c);render()}
 
 function renderQuiz(){
+  const modes=[['mcq','בוחן אמריקאי'],['recall','שליפה חופשית'],['exam','מבחן מסכם']];
+  app.append(h('div',{class:'chips',role:'group','aria-label':'סוג תרגול',style:'margin-bottom:12px'},...modes.map(([k,v])=>h('button',{class:'chip','aria-pressed':String(pmode===k),on:{click:()=>{pmode=k;quiz=null;exam=null;recall=null;render()}}},v))));
+  if(pmode==='recall')return renderRecall();
+  if(pmode==='exam')return renderExam();
+  renderMCQ();
+}
+// ---- free recall: write everything you remember, then see what is missing ----
+function keyTerms(L){
+  const map=new Map();
+  const add=(term,ids,ctx)=>{term=String(term||'').trim();if(!term||term.length>30||words(term).length>4||!words(term).length)return;const k=norm(term);
+    if(!map.has(k))map.set(k,{term,ids:[],ctx});map.get(k).ids.push(...ids)};
+  for(const n of NOTES){if(L!=='all'&&n.t!==L)continue;const ids=CARDS.filter(c=>c.nid===n.id).map(c=>c.id);
+    if(n.k==='qa'){add(termOf(n)||n.b,ids,n.f)}
+    else{const ns=[...new Set([...(n.x||'').matchAll(/\{\{c(\d+)::/g)].map(m=>+m[1]))];for(const k of ns)add(clozeAnswer(n.x,k),ids.filter(id=>id===n.id+'-'+k),plain(n.x))}}
+  return [...map.values()];
+}
+function renderRecall(){
+  const L=lecFilter;
+  const past=(P.recall||[]).filter(r=>r.t===L).slice(-1)[0];
+  if(!recall||recall.L!==L)recall={L,text:'',res:null};
+  const r=recall;
+  const head=h('section',{class:'panel stack'},h('h2',{},'שליפה חופשית'),
+    h('p',{},'בלי להציץ: כתוב כל מה שאתה זוכר מההרצאה. מושגים, תהליכים, דוגמאות וקשרים ביניהם. אחר כך תראה מה הזכרת ומה פספסת.'),
+    h('p',{class:'sub'},'זה תרגול קשה, וזה מכוון: להיזכר בלי רמז מחזק את הזיכרון יותר מזיהוי, ומראה בדיוק מה חסר. עדיף הרצאה אחת בכל פעם, כ-5 דקות.'),
+    lecChips(),past?h('p',{class:'sub'},'בפעם הקודמת בהרצאה הזו: '+past.p+'% ('+past.d+')'):null);
+  app.append(head);
+  if(!r.res){
+    const ta=h('textarea',{dir:'auto',rows:'8',placeholder:'מה אתה זוכר?',style:'min-height:12em'});ta.value=r.text;ta.addEventListener('input',()=>r.text=ta.value);
+    app.append(h('section',{class:'panel stack'},ta,h('div',{},h('button',{class:'primary',on:{click:()=>{
+      if(r.text.trim().length<3){toast('כתוב קודם מה שאתה זוכר');return}
+      const terms=keyTerms(L);if(!terms.length){toast('אין עדיין מושגים בהרצאה הזו');return}
+      const tw=words(r.text);const hit=[],miss=[];for(const t of terms)(overlap(tw,t.term)>=0.66?hit:miss).push(t);
+      const pct=Math.round(100*hit.length/terms.length);r.res={hit,miss,pct};
+      P.recall=(P.recall||[]).concat([{d:today(),t:L,p:pct}]).slice(-60);persist('progress');render()}}},'סיימתי, הראה מה פספסתי'))));
+    setTimeout(()=>ta.focus(),0);return;
+  }
+  const {hit,miss,pct}=r.res;
+  const missIds=miss.flatMap(t=>t.ids);
+  app.append(h('section',{class:'panel stack'},h('h2',{},'הזכרת '+hit.length+' מתוך '+(hit.length+miss.length)+' מושגים ('+pct+'%)'),
+    h('p',{class:'sub'},'הבדיקה לפי מילים, אז ייתכן שהזכרת משהו בניסוח אחר. עבור על הרשימה בעצמך.'),
+    miss.length?h('div',{class:'stack',style:'gap:8px'},h('b',{},'פספסת:'),...miss.slice(0,40).map(t=>h('div',{class:'item'},h('b',{},t.term),h('div',{class:'sub'},String(t.ctx||'').slice(0,140))))):h('p',{},'הזכרת הכול. מצוין!'),
+    hit.length?h('details',{},h('summary',{},'הזכרת ('+hit.length+')'),h('div',{class:'terms'},...hit.map(t=>h('span',{class:'hit'},t.term)))):null,
+    h('div',{class:'row'},miss.length?h('button',{class:'primary',on:{click:()=>{const n=advance(missIds);toast(n?n+' כרטיסים הוקדמו לחזרה של היום':'הכרטיסים האלה עוד חדשים או כבר מחכים לחזרה')}}},'הקדם את הפספוסים לחזרה'):null,
+      h('button',{on:{click:()=>{recall=null;render()}}},'שליפה חדשה'))));
+}
+// ---- exam simulation: mixed questions, no feedback until the end ----
+function renderExam(){
+  if(!exam){
+    const last=(P.exams||[]).slice(-3).reverse();
+    app.append(h('section',{class:'panel stack'},h('h2',{},'מבחן מסכם'),
+      h('p',{},'20 שאלות מעורבות, בלי משוב באמצע, כמו במבחן אמיתי. בסוף תקבל ציון לפי הרצאה, והטעויות יוכלו להיכנס לחזרה.'),
+      h('p',{class:'sub'},'מבחן תרגול הוא אחת הדרכים היעילות ביותר להתכונן: הוא מחזק את הזיכרון ומראה איפה אתה עומד באמת. הכי מועיל בשבועיים שלפני המבחן.'),
+      lecChips(),last.length?h('p',{class:'sub'},'מבחנים אחרונים: '+last.map(x=>x.s+'/'+x.n+' ('+x.d+')').join(' · ')):null,
+      h('div',{},h('button',{class:'primary',on:{click:()=>{exam=buildQuiz(20);exam.exam=true;if(!exam.qs.length){exam=null;toast('אין מספיק כרטיסים');return}render();window.scrollTo(0,0)}}},'התחל מבחן'))));
+    return;
+  }
+  const z=exam;
+  if(z.i>=z.qs.length){
+    const right=z.qs.filter(x=>x.picked===x.answer).length;
+    if(!z.saved){z.saved=true;P.exams=(P.exams||[]).concat([{d:today(),s:right,n:z.qs.length}]).slice(-30);persist('progress')}
+    const byL={};for(const x of z.qs){const k=x.n.t;byL[k]=byL[k]||[0,0];byL[k][1]++;if(x.picked===x.answer)byL[k][0]++}
+    const wrong=z.qs.filter(x=>x.picked!==x.answer);
+    const ids=wrong.flatMap(x=>CARDS.filter(c=>c.nid===x.n.id).map(c=>c.id));
+    app.append(h('section',{class:'panel stack'},h('h2',{},'ציון: '+Math.round(100*right/z.qs.length)+' ('+right+' מתוך '+z.qs.length+')'),
+      h('div',{class:'stack',style:'gap:4px'},...Object.entries(byL).map(([k,v])=>h('div',{class:'row',style:'justify-content:space-between'},h('span',{},lecName(k)),h('b',{},v[0]+'/'+v[1])))),
+      wrong.length?h('div',{class:'stack',style:'gap:8px'},h('b',{},'הטעויות:'),...wrong.map(x=>h('div',{class:'item'},
+        h('div',{class:'txt',html:x.kind==='def'?esc(x.prompt):x.promptHtml}),h('div',{},'תשובה: ',h('b',{},x.answer),x.picked?h('span',{class:'sub'},' · בחרת: '+x.picked):null),x.n.e?h('div',{class:'sub'},x.n.e):null))):h('p',{},'מושלם!'),
+      h('div',{class:'row'},wrong.length?h('button',{class:'primary',on:{click:()=>{const n=advance(ids);toast(n?n+' כרטיסים הוקדמו לחזרה של היום':'הכרטיסים האלה עוד חדשים או כבר מחכים לחזרה')}}},'הכנס את הטעויות לחזרה'):null,
+        h('button',{on:{click:()=>{exam=null;render()}}},'מבחן חדש'))));
+    return;
+  }
+  const x=z.qs[z.i];
+  app.append(h('div',{class:'stack'},
+    h('div',{class:'progress',role:'progressbar','aria-valuenow':z.i,'aria-valuemax':z.qs.length},h('i',{style:`width:${100*z.i/z.qs.length}%`})),
+    h('article',{class:'card'},h('div',{class:'meta'},h('span',{},`שאלה ${z.i+1} מתוך ${z.qs.length}`)),h('div',{class:'ask'},x.ask),
+      h('div',{class:'q',html:x.kind==='def'?esc(x.prompt):x.promptHtml}),
+      h('div',{class:'opts'},...x.opts.map(o=>h('button',{class:x.picked===o?'sel':'',on:{click:()=>{x.picked=o;render()}}},o)))),
+    h('div',{class:'row'},h('button',{class:'primary',disabled:!x.picked,on:{click:()=>{z.i++;render();window.scrollTo(0,0)}}},z.i+1<z.qs.length?'לשאלה הבאה':'סיים והצג תוצאות'),
+      z.i>0?h('button',{on:{click:()=>{z.i--;render()}}},'לשאלה הקודמת'):null)));
+}
+function renderMCQ(){
   if(!quiz)quiz=buildQuiz();
   const z=quiz;
   if(!z.qs.length){app.append(h('section',{class:'panel stack'},lecChips(),h('p',{},'אין מספיק כרטיסים להרצאה הזו.')));return}
@@ -827,6 +950,7 @@ function renderBrowse(){
 document.addEventListener('keydown',e=>{
   if(view!=='study'||!session||!session.cur||editing)return;
   const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+  if(!revealed&&['1','2','3'].includes(e.key)){e.preventDefault();reveal(['sure','unsure','none'][+e.key-1]);return}
   if(!revealed&&(e.key===' '||e.key==='Enter')){e.preventDefault();reveal();return}
   if(revealed&&['1','2','3','4'].includes(e.key)){e.preventDefault();answer(+e.key);return}
   if(revealed&&(e.key===' '||e.key==='Enter')&&e.target===document.body){e.preventDefault();answer(3);return}
