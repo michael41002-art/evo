@@ -244,6 +244,9 @@ figure img{cursor:zoom-in}
 .flagbox{display:flex;flex-direction:column;gap:6px;background:var(--bg);border-radius:10px;padding:10px 12px}
 .meta .flagged{color:var(--hard);font-weight:700}
 .boost{font-size:.85rem;color:var(--accent);font-weight:600}
+.card.teach{border-color:var(--accent)}
+.meta .newc{color:var(--accent);font-weight:700}
+.card.teach .ask b{color:var(--ink)}
 </style>
 </head>
 <body>
@@ -281,7 +284,7 @@ const LEARN_STEPS=[1,10];
 const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
 const DECAY=-0.5, FACTOR=19/81;
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.7', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.8', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -293,7 +296,7 @@ let syncState='local';
 const app=document.getElementById('app');
 
 function blankProgress(){return {v:1,updatedAt:0,cards:{},log:{},recall:[],exams:[],maps:{},mcqS:{},settings:{newPerDay:15,typeAnswer:false,reverse:true,retention:0.9,examDate:'',autoPace:true}}}
-function blankDeck(){return {v:1,updatedAt:0,edits:{},added:[],lectures:[],mcq:[],pairs:[],flags:{}}}
+function blankDeck(){return {v:1,updatedAt:0,edits:{},added:[],lectures:[],mcq:[],pairs:[],flags:{},concepts:[]}}
 function pad(n){return String(n).padStart(2,'0')}
 function dayKeyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function dayKey(t){return dayKeyOf(new Date(t-ROLL*HOUR))}
@@ -355,6 +358,93 @@ function rebuild(){
     }
   }
   CARDS=cards;BYID=Object.fromEntries(cards.map(c=>[c.id,c]));
+  indexConcepts();
+}
+
+// ---------- gradual learning: a concept is taught before any card that uses it ----------
+// n: concept, kw: forms that show a card uses it, def: text that marks the card(s) that teach it
+const EVO_CONCEPTS=[
+ {n:'ברירה טבעית',kw:['ברירה טבעית','ברירה הטבעית'],def:['איך קרא דרווין למנגנון']},
+ {n:'גנוטיפ',kw:['גנוטיפ'],def:['מהו גנוטיפ?']},
+ {n:'פנוטיפ',kw:['פנוטיפ'],def:['מהו פנוטיפ?']},
+ {n:'כשירות',kw:['כשירות'],def:['מהי כשירות']},
+ {n:'מוטציה',kw:['מוטציה','מוטציות'],def:['מהו המקור האולטימטיבי לאללים']},
+ {n:'אלל',kw:['אלל'],def:['מהו מאגר גנים']},
+ {n:'מאגר גנים',kw:['מאגר גנים','מאגר הגנים'],def:['מהו מאגר גנים']},
+ {n:'אדפטציה',kw:['אדפטציה'],def:['מהי אדפטציה']},
+ {n:'אבולוציה מתכנסת',kw:['מתכנסת','התכנסות'],def:['מהי אבולוציה מתכנסת','מהי התכנסות צורה']},
+ {n:'מבנים הומולוגיים',kw:['מבנים הומולוגיים'],def:['מהם מבנים הומולוגיים']},
+ {n:'מבנים שרידיים',kw:['שרידי'],def:['מהם מבנים שרידיים']},
+ {n:'מינים אנדמיים',kw:['אנדמי'],def:['מהם מינים אנדמיים']},
+ {n:'סחיפה גנטית',kw:['סחיפה','סחף'],def:['מהי סחיפה']},
+ {n:'מכלוא',kw:['מכלוא','היבריד','הכלאה'],def:['איך נקרא צאצא של הכלאה']},
+ {n:'התמיינות',kw:['התמיינות'],def:['מהי התמיינות (speciation)']},
+ {n:'התמיינות אלופטרית',kw:['אלופטרית'],def:['מהי התמיינות אלופטרית']},
+ {n:'התמיינות סימפטרית',kw:['סימפטרית'],def:['מהי התמיינות סימפטרית']},
+ {n:'זרימת גנים',kw:['זרימת גנים'],def:['מהי זרימת גנים']},
+ {n:'התפצלות סתגלנית',kw:['התפצלות סתגלנית'],def:['מהי התפצלות סתגלנית']},
+ {n:'אנופלואידיה',kw:['אנופלואיד'],def:['מהי אנופלואידיה']},
+ {n:'פוליפלואידיה',kw:['פוליפלואיד','טטרפלואיד'],def:['מהי פוליפלואידיה']},
+ {n:'זיגוטה',kw:['זיגוט'],def:['מהי זיגוטה']},
+ {n:'גמטה',kw:['גמט'],def:['שינוי גנטי יעבור לדור הבא רק אם הוא נמצא ב']},
+ {n:'MRCA',kw:['MRCA'],def:['מה פירוש MRCA']},
+ {n:'עץ פילוגנטי',kw:['פילוגנט'],def:['בעץ פילוגנטי, בסיס העץ']},
+ {n:'שלוש העל-ממלכות',kw:['ארכאו','אאוקריוט','פרוקריוט'],def:['שלוש העל-ממלכות']},
+ {n:'אנדוסימביוזה',kw:['אנדוסימביוזה'],def:['האאוקריוטים התפתחו מאירוע']},
+ {n:'אירוע החמצון הגדול',kw:['אירוע החמצון הגדול'],def:['אירוע החמצון הגדול התרחש']},
+ {n:'תורשתיות',kw:['תורשתיות'],def:['מהי תורשתיות']},
+ {n:'ברירה כיוונית',kw:['ברירה כיוונית'],def:['מהי ברירה כיוונית']},
+ {n:'ברירה מייצבת',kw:['ברירה מייצבת'],def:['מהי ברירה מייצבת']},
+ {n:'ברירה מפצלת',kw:['ברירה מפצלת'],def:['מהי ברירה מפצלת']}
+];
+function conceptsAll(){return (COURSE==='evo'?EVO_CONCEPTS:[]).concat(D.concepts||[])}
+let CONC=[],CDEF={},NDEF={},NUSE={},NCARDS={};
+function indexConcepts(){
+  CONC=conceptsAll();CDEF={};NDEF={};NUSE={};NCARDS={};
+  for(const c of CARDS)(NCARDS[c.nid]=NCARDS[c.nid]||[]).push(c.id);
+  for(const n of NOTES){const head=(n.f||'')+' '+(n.x||'');const txt=(n.f||'')+' '+(n.b||'')+' '+plain(n.x||'');
+    const d=CONC.filter(c=>(c.def||[]).some(x=>head.includes(x))).map(c=>c.n);
+    for(const k of d)(CDEF[k]=CDEF[k]||[]).push(n.id);
+    NDEF[n.id]=d;NUSE[n.id]=CONC.filter(c=>!d.includes(c.n)&&c.kw.some(w=>txt.includes(w))).map(c=>c.n)}
+}
+function noteSeen(nid){return (NCARDS[nid]||[]).some(id=>P.cards[id])}
+function conceptKnown(k,placed){return (CDEF[k]||[]).some(nid=>noteSeen(nid)||(placed&&placed.has(nid)))}
+function needs(nid,placed){return (NUSE[nid]||[]).filter(k=>(CDEF[k]||[]).length&&!conceptKnown(k,placed))}
+// keep the lecture's own order, but hold back a card until the cards that teach its concepts came first
+function prereqOrder(list){
+  const placed=new Set(),out=[],pend=[];
+  const put=id=>{out.push(id);placed.add(BYID[id].nid)};
+  const drain=()=>{for(let i=0;i<pend.length;i++)if(!needs(BYID[pend[i]].nid,placed).length){put(pend.splice(i,1)[0]);i=-1}};
+  for(const id of list){if(needs(BYID[id].nid,placed).length)pend.push(id);else{put(id);drain()}}
+  return out.concat(pend);
+}
+function textReady(txt){for(const c of CONC){const d=CDEF[c.n];if(!d||!d.length)continue;if(c.kw.some(w=>txt.includes(w))&&!d.some(noteSeen))return false}return true}
+function lecSeen(t){return CARDS.some(c=>c.t===t&&P.cards[c.id])}
+function teachable(c){return session&&session.mode==='srs'&&c.k!=='rev'&&isNew(c.id)&&(NDEF[c.nid]||[]).length>0}
+function teachDone(){
+  const id=session&&session.cur;if(!id||!isNew(id))return;const now=Date.now();
+  const lg=logToday();const prevLog=Object.assign({},lg);
+  // taught, not yet tested: the first real question comes about a minute later
+  P.cards[id]={q:'learn',step:0,reps:0,lapses:0,due:now+MIN,taught:today()};
+  lg.n++;session.nNew++;session.newQueue=session.newQueue.filter(x=>x!==id);
+  undoStack.push({id,prev:null,prevLog,day:today(),wasNew:true});if(undoStack.length>20)undoStack.shift();
+  persist('progress');nextCard();
+}
+function teachView(c){
+  const q=cardQA(c);const names=NDEF[c.nid]||[];
+  const card=h('article',{class:'card teach'},
+    h('div',{class:'meta'},h('span',{},lecName(c.t)),h('span',{class:'newc'},'מושג חדש'),h('span',{class:'sp'}),
+      (D.flags||{})[c.nid]?h('button',{class:'flagged',on:{click:()=>unflag(c.nid)}},'⚑ סומן'):h('button',{on:{click:()=>{flagOpen=c.nid;render()}}},'יש פה טעות')),
+    flagOpen===c.nid?flagBox(c.nid):null,
+    h('div',{class:'ask'},'קודם לומדים. ',h('b',{},names.join(', ')),' יופיע בשאלות הבאות, אז כדאי להבין אותו עכשיו.'),
+    c.k==='qa'?h('div',{class:'q',html:esc(q.n.f)}):h('div',{class:'q',html:clozeBack(q.n.x,c.n)}),
+    c.k==='qa'?h('div',{class:'answer'},h('div',{class:'a'},q.answer)):null,
+    q.extra?h('div',{class:'note'},h('b',{},'הסבר'),q.extra):null);
+  if(q.n.img&&(IMG[q.n.img]||q.n.img.includes('/'))){const src=q.n.img.includes('/')?q.n.img:'img/'+q.n.img+'.webp';const cap=q.n.cap||IMG[q.n.img]||'';
+    card.append(h('figure',{},h('img',{src,alt:cap||'איור מהשקפים',loading:'lazy',on:{click:()=>zoomImg(src,cap)}}),h('figcaption',{},(cap?cap+' · ':'')+'הקש להגדלה')))}
+  const dockin=h('div',{class:'dockin'},h('button',{class:'primary reveal',id:'teachBtn',on:{click:teachDone}},'הבנתי, אפשר לשאול אותי'),
+    h('div',{class:'keys'},'מקש: רווח או Enter'));
+  return h('div',{class:'stack'},card,h('div',{class:'dock'},dockin));
 }
 function termOf(n){const m=(n.f||'').match(/^(?:מהו|מהי|מהם|מהן|מה פירוש)\s+(.+?)\s*\??$/);return m?m[1].replace(/^"|"$/g,''):null}
 function lecName(t){const i=LECS.findIndex(l=>l[0]===t);return i<0?'':'הרצאה '+(i+1)+' · '+LECS[i][1]}
@@ -410,7 +500,7 @@ async function pull(){
 function updateSync(){const s=document.getElementById('sync');if(!s)return;
   s.textContent={local:'ההתקדמות נשמרת רק במכשיר הזה',loading:'מסנכרן…',synced:'ההתקדמות מסונכרנת ✓',error:'אין חיבור כרגע. ההתקדמות נשמרת במכשיר ותסונכרן אחר כך'}[syncState]}
 function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],rl:p.rl||[],exams:p.exams||[],maps:p.maps||{},mcqS:p.mcqS||{},settings:Object.assign(b.settings,p.settings||{})}}
-function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d.added||[],lectures:d.lectures||[],mcq:d.mcq||[],pairs:d.pairs||[],flags:d.flags||{}}}
+function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d.added||[],lectures:d.lectures||[],mcq:d.mcq||[],pairs:d.pairs||[],flags:d.flags||{},concepts:d.concepts||[]}}
 async function initStore(){
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);rebuild();render();
   await pull();pullOthers();
@@ -465,9 +555,10 @@ function importText(raw){
       else if((x.type==='qa'||x.k==='qa')&&(x.front||x.f)&&(x.back||x.b)){D.added.push({id,k:'qa',f:x.front||x.f,b:x.back||x.b,e:x.extra||x.e||'',t:key,img:x.img,cap:x.cap});n++}
       else if((x.type==='cloze'||x.k==='cz')&&clozeOk(x.text||x.x||'')){D.added.push({id,k:'cz',x:x.text||x.x,e:x.extra||x.e||'',t:key,img:x.img,cap:x.cap});n++}
     }
+    let nc=0;if(Array.isArray(o.concepts)){D.concepts=D.concepts||[];for(const c of o.concepts){if(!c||!c.n||!Array.isArray(c.kw))continue;const i3=D.concepts.findIndex(x=>x.n===c.n);if(i3>=0)D.concepts[i3]=c;else D.concepts.push(c);nc++}}
     let np=0;if(Array.isArray(o.pairs)){D.pairs=D.pairs||[];for(const pr of o.pairs){if(!pr||!pr.id||!Array.isArray(pr.terms)||!Array.isArray(pr.items))continue;const i2=D.pairs.findIndex(x=>x.id===pr.id);const v=Object.assign({},pr,{t:pr.t||key});if(i2>=0)D.pairs[i2]=v;else D.pairs.push(v);np++}}
     rebuild();persist('deck');lecFilter='all';
-    if(np&&!n&&!nm)return {ok:true,msg:np+' זוגות מושגים להבחנה נוספו.'};
+    if((np||nc)&&!n&&!nm)return {ok:true,msg:[np?np+' זוגות מושגים להבחנה נוספו.':'',nc?nc+' מושגים נוספו לסדר הלימוד.':''].join(' ').trim()};
     return {ok:true,msg:(n||nm)?(n?n+' כרטיסים חדשים נוספו. ':'')+(nm?nm+' שאלות אמריקאיות נוספו לתרגול.':''):'כל הכרטיסים האלה כבר קיימים.'};
   }
   return {ok:false,msg:'זה לא נראה כמו גיבוי או חבילת כרטיסים.'};
@@ -477,6 +568,7 @@ function packPrompt(){
   'עקרונות:\n- כל כרטיס בודק רעיון אחד. תשובה קצרה: מילה, מונח או משפט אחד.\n- לכל כרטיס הסבר קצר (1–3 משפטים) שמסביר למה, ומקשר לרעיון אחר מההרצאה כשאפשר.\n- נסח במילים שלך, לא העתקה מהסיכום, כדי שאצטרך להבין ולא לזהות ניסוח.\n- כסה את כל הרעיונות החשובים בהרצאה, כולל דוגמאות שהמרצה נתן.\n\n'+
   'תמהיל:\n- כ-25% מושגים והגדרות ("מהו X?").\n- כ-30% מנגנון וסיבתיות ("למה…?", "איך…?", "מה יקרה אם…?").\n- כ-20% השוואה והבחנה בין מושגים שקל לבלבל.\n- כ-15% יישום על דוגמה או תרחיש חדש שלא הופיע בהרצאה.\n- כ-10% השלמת חסר במשפטי מפתח.\n\n'+
   'בנוסף:\n- מפת הרצאה: שלד קצר של ההרצאה (כותרות עם "# ", נקודות עם "- "), בשדה lecture.map.\n- 10–15 שאלות אמריקאיות בסגנון מבחן (type "mc"): התשובה הנכונה ראשונה ברשימה, ושלושה מסיחים שמבוססים על טעויות נפוצות ובלבולים בין מושגים קרובים. ההסבר אומר למה הנכונה נכונה ולמה המסיח המפתה שגוי.\n\n'+
+  '- רשימת מושגים (concepts): לכל מושג חדש בהרצאה, השם, הצורות שבהן הוא מופיע בכרטיסים (kw), ותחילת השאלה של הכרטיס שמלמד אותו (def). האפליקציה תלמד כל מושג לפני כרטיס שמשתמש בו.\n\n'+
   'פורמט: JSON בלבד בבלוק קוד אחד, בדיוק במבנה הזה:\n'+
   '{"type":"evo-cards","lecture":{"name":"<שם ההרצאה>","map":"# נושא\\n- נקודה"},"cards":[{"type":"qa","front":"שאלה","back":"תשובה","extra":"הסבר"},{"type":"cloze","text":"משפט עם {{c1::המילה החסרה}}","extra":"הסבר"},{"type":"mc","front":"שאלה","options":["נכונה","מסיח","מסיח","מסיח"],"extra":"הסבר"}]}';
 }
@@ -653,7 +745,7 @@ function startSession(chain){
   // reverse cards wait until the forward card is known
   const rr=[];const lists=LECS.map(l=>byL[l[0]]||[]);let k=0;const total=lists.reduce((a,b)=>a+b.length,0);
   while(rr.length<total){for(const a of lists)if(a[k])rr.push(a[k]);k++}
-  const ordered=rr.filter(id=>BYID[id].k!=='rev'||!isNew(BYID[id].nid));
+  const ordered=prereqOrder(rr.filter(id=>BYID[id].k!=='rev'||!isNew(BYID[id].nid)));
   session={mode:'srs',newQueue:ordered.slice(0,c.newAvail),done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),cur:null,chain:!!chain};
   for(const id of session.newQueue){const L=BYID[id].t;if(lecMap(L)&&!P.maps[L]){session.pendingMap=L;break}}
   view='study';if(session.pendingMap){resetCardUI();render();window.scrollTo(0,0)}else nextCard();
@@ -804,7 +896,7 @@ function editorEl(note,onDone){
 }
 
 // ---------- quiz (multiple choice) ----------
-function mcqs(){return (COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]).filter(m=>lecFilter==='all'||m.t===lecFilter)}
+function mcqs(){return (COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]).filter(m=>(lecFilter==='all'||m.t===lecFilter)&&((P.mcqS&&P.mcqS[m.id])||(lecSeen(m.t)&&textReady(m.f+' '+m.o.join(' ')))))}
 function buildQuiz(count){
   count=count||10;
   // questions written for the exam format come first; generated ones fill the rest
@@ -815,9 +907,9 @@ function buildQuiz(count){
 }
 function buildGenQuiz(count){
   const pool=[];
-  const defs=NOTES.filter(n=>n.k==='qa'&&termOf(n));
-  for(const n of defs){if(lecFilter!=='all'&&n.t!==lecFilter)continue;pool.push({kind:'def',n,answer:termOf(n),prompt:n.b,ask:'איזה מושג מתאים להגדרה?'})}
-  for(const c of CARDS){if(c.k!=='cz'||!inFilter(c))continue;const n=NBYID[c.nid];const a=clozeAnswer(n.x,c.n);if(a.length>40)continue;pool.push({kind:'cz',n,c,answer:a,promptHtml:clozeFront(n.x,c.n),ask:'השלם את החסר'})}
+  const defsAll=NOTES.filter(n=>n.k==='qa'&&termOf(n));const seenD=defsAll.filter(n=>noteSeen(n.id));const defs=seenD.length>=4?seenD:defsAll;
+  for(const n of seenD){if(lecFilter!=='all'&&n.t!==lecFilter)continue;if(!P.cards[n.id])continue;pool.push({kind:'def',n,answer:termOf(n),prompt:n.b,ask:'איזה מושג מתאים להגדרה?'})}
+  for(const c of CARDS){if(c.k!=='cz'||!inFilter(c)||!P.cards[c.id])continue;const n=NBYID[c.nid];const a=clozeAnswer(n.x,c.n);if(a.length>40)continue;pool.push({kind:'cz',n,c,answer:a,promptHtml:clozeFront(n.x,c.n),ask:'השלם את החסר'})}
   const qs=shuffle(pool).slice(0,count||10).map(item=>{
     const same=item.kind==='def'?defs.map(d=>termOf(d)):CARDS.filter(x=>x.k==='cz').map(x=>clozeAnswer(NBYID[x.nid].x,x.n)).filter(a=>a.length<=40);
     const lecOf=item.kind==='def'?defs.filter(d=>d.t===item.n.t).map(d=>termOf(d)):CARDS.filter(x=>x.k==='cz'&&x.t===item.n.t).map(x=>clozeAnswer(NBYID[x.nid].x,x.n));
@@ -863,7 +955,7 @@ const EVO_PAIRS=[
   tip:'סחיפה = מקרה בתוך אוכלוסייה. זרימה = אללים שעוברים בין אוכלוסיות.'}
 ];
 function pairsAll(){return (COURSE==='evo'?EVO_PAIRS:[]).concat(D.pairs||[])}
-function pairsHere(){return pairsAll().filter(p=>lecFilter==='all'||!p.t||p.t===lecFilter)}
+function pairsHere(){return pairsAll().filter(p=>(lecFilter==='all'||!p.t||p.t===lecFilter)&&NOTES.filter(n=>noteSeen(n.id)&&p.kw.some(w=>((n.f||'')+' '+(n.b||'')+' '+plain(n.x||'')).includes(w))).length>=2)}
 function pairFor(id){
   const c=BYID[id];if(!c)return null;const n=NBYID[c.nid];if(!n)return null;
   const txt=(n.f||'')+' '+(n.b||'')+' '+plain(n.x||'');let best=null,bs=0;
@@ -893,7 +985,7 @@ function drillView(){
 let pq=null;
 function renderPairs(){
   const ps=pairsHere();
-  if(!ps.length){app.append(h('section',{class:'panel stack'},lecChips(),h('p',{class:'sub'},'אין עדיין זוגות מושגים להרצאה הזו.')));return}
+  if(!ps.length){app.append(h('section',{class:'panel stack'},lecChips(),h('p',{class:'sub'},'ההבחנה בין מושגים נפתחת אחרי שלמדת את שני המושגים בכרטיסים. כרגע אין כאן זוג כזה.')));return}
   if(!pq){const all=[];for(const p of ps)for(const it of p.items)all.push({p,it});pq={qs:shuffle(all).slice(0,12),i:0,score:0,picked:null,miss:new Set()}}
   const z=pq;
   if(z.i>=z.qs.length){const miss=ps.filter(p=>z.miss.has(p.id));
@@ -1113,6 +1205,7 @@ function sessionSummary(s){
   return h('div',{class:'stack',style:'align-items:center;gap:10px;width:100%'},box,...msgs.map(m=>h('p',{class:'msg'},m)));
 }
 function cardView(c){
+  if(editing!==c.nid&&teachable(c))return teachView(c);
   const s=st(c.id),q=cardQA(c);
   if(editing===c.nid){
     return h('div',{class:'stack'},editorEl(q.n,res=>{editing=null;if(res==='deleted'){toast('הכרטיס נמחק');if(session.mode==='cram')session.queue.shift();nextCard()}else{if(res==='saved')toast('השינויים נשמרו');render()}}));
@@ -1221,7 +1314,7 @@ function renderExam(){
       h('p',{},'20 שאלות מעורבות, בלי משוב באמצע, כמו במבחן אמיתי. בסוף תקבל ציון לפי הרצאה, והטעויות יוכלו להיכנס לחזרה.'),
       h('p',{class:'sub'},'מבחן תרגול הוא אחת הדרכים היעילות ביותר להתכונן: הוא מחזק את הזיכרון ומראה איפה אתה עומד באמת. הכי מועיל בשבועיים שלפני המבחן.'),
       lecChips(),last.length?h('p',{class:'sub'},'מבחנים אחרונים: '+last.map(x=>x.s+'/'+x.n+' ('+x.d+')').join(' · ')):null,
-      h('div',{},h('button',{class:'primary',on:{click:()=>{exam=buildQuiz(20);exam.exam=true;if(!exam.qs.length){exam=null;toast('אין מספיק כרטיסים');return}render();window.scrollTo(0,0)}}},'התחל מבחן'))));
+      h('div',{},h('button',{class:'primary',on:{click:()=>{exam=buildQuiz(20);exam.exam=true;if(!exam.qs.length){exam=null;toast('המבחן שואל רק על מה שכבר למדת. למד קודם כמה כרטיסים');return}render();window.scrollTo(0,0)}}},'התחל מבחן'))));
     return;
   }
   const z=exam;
@@ -1251,7 +1344,7 @@ function renderExam(){
 function renderMCQ(){
   if(!quiz)quiz=buildQuiz();
   const z=quiz;
-  if(!z.qs.length){app.append(h('section',{class:'panel stack'},lecChips(),h('p',{},'אין מספיק כרטיסים להרצאה הזו.')));return}
+  if(!z.qs.length){app.append(h('section',{class:'panel stack'},lecChips(),h('p',{},'התרגול שואל רק על מושגים שכבר למדת, וכאן עוד אין מספיק. למד כמה כרטיסים והשאלות ייפתחו.')));return}
   if(z.i>=z.qs.length){
     const wrong=z.qs.filter(x=>x.picked!==x.answer);
     const stillDue=mcqDue().length;
@@ -1295,6 +1388,7 @@ function renderBrowse(){
 document.addEventListener('keydown',e=>{
   if(view!=='study'||!session||!session.cur||editing||session.drill||session.pendingMap||document.querySelector('.zoom'))return;
   const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+  if(BYID[session.cur]&&teachable(BYID[session.cur])){if(e.key===' '||e.key==='Enter'){e.preventDefault();teachDone()}return}
   if(!revealed&&['1','2','3'].includes(e.key)){e.preventDefault();reveal(['sure','unsure','none'][+e.key-1]);return}
   if(!revealed&&(e.key===' '||e.key==='Enter')){e.preventDefault();reveal();return}
   if(revealed&&['1','2','3','4'].includes(e.key)){e.preventDefault();answer(+e.key);return}
