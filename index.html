@@ -234,7 +234,7 @@ const LEARN_STEPS=[1,10];
 const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
 const DECAY=-0.5, FACTOR=19/81;
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.5', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.6', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -362,7 +362,7 @@ async function pull(){
 }
 function updateSync(){const s=document.getElementById('sync');if(!s)return;
   s.textContent={local:'ההתקדמות נשמרת רק במכשיר הזה',loading:'מסנכרן…',synced:'ההתקדמות מסונכרנת ✓',error:'אין חיבור כרגע. ההתקדמות נשמרת במכשיר ותסונכרן אחר כך'}[syncState]}
-function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],exams:p.exams||[],maps:p.maps||{},settings:Object.assign(b.settings,p.settings||{})}}
+function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],rl:p.rl||[],exams:p.exams||[],maps:p.maps||{},settings:Object.assign(b.settings,p.settings||{})}}
 function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d.added||[],lectures:d.lectures||[],mcq:d.mcq||[]}}
 async function initStore(){
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);rebuild();render();
@@ -653,6 +653,8 @@ function answer(g){
   const lg=logToday();const prevLog=Object.assign({},lg);
   const wasNew=!prev, wasReview=prev&&prev.q==='review';
   P.cards[id]=schedule(id,g,now,false);
+  // review history (card, minute, grade, confidence) kept for tuning the scheduler to this learner later
+  P.rl=(P.rl||[]).concat([[id,Math.round(now/60000),g,conf?conf[0]:'']]);if(P.rl.length>1500)P.rl=P.rl.slice(-1500);
   // metacognition: how well did the prediction before the reveal match the result?
   if(conf){P.cards[id].cf=conf;lg['c_'+conf]=(lg['c_'+conf]||0)+1;if(g>1)lg['k_'+conf]=(lg['k_'+conf]||0)+1;if(conf==='sure'&&g===1)P.cards[id].ill=(P.cards[id].ill||0)+1}
   lg.t++;if(wasNew)lg.n++;if(wasReview){lg.r++;if(g>1)lg.ok++}
@@ -664,6 +666,7 @@ function answer(g){
 function undo(){
   const u=undoStack.pop();if(!u)return;
   if(u.prev)P.cards[u.id]=u.prev;else delete P.cards[u.id];
+  if(P.rl&&P.rl.length&&P.rl[P.rl.length-1][0]===u.id)P.rl.pop();
   P.log[u.day]=u.prevLog;if(u.wasNew)session.newQueue.unshift(u.id);
   session.done=Math.max(0,session.done-1);persist('progress');resetCardUI();session.cur=u.id;render();toast('התשובה האחרונה בוטלה');
 }
