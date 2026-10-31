@@ -247,6 +247,83 @@ figure img{cursor:zoom-in}
 .card.teach{border-color:var(--accent)}
 .meta .newc{color:var(--accent);font-weight:700}
 .card.teach .ask b{color:var(--ink)}
+
+/* v1.9: softer look */
+:root{--shadow:0 1px 2px rgba(20,40,30,.05),0 6px 20px rgba(20,40,30,.06);--shadow-lg:0 2px 6px rgba(20,40,30,.06),0 14px 34px rgba(20,40,30,.09);--tint:color-mix(in srgb,var(--accent) 7%,var(--bg))}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);--shadow-lg:0 2px 6px rgba(0,0,0,.35),0 14px 34px rgba(0,0,0,.35)}}
+:root[data-theme="dark"]{--shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);--shadow-lg:0 2px 6px rgba(0,0,0,.35),0 14px 34px rgba(0,0,0,.35)}
+body{background:linear-gradient(180deg,var(--tint) 0,var(--bg) 340px) no-repeat,var(--bg);transition:background-color .3s}
+.panel{border:0;border-radius:20px;padding:18px 20px;box-shadow:var(--shadow)}
+.panel h2{font-family:var(--body);font-weight:700;font-size:1.08rem;letter-spacing:.01em}
+details summary{font-family:var(--body);font-size:1.02rem}
+button{border-radius:12px;transition:transform .12s ease,background-color .2s,border-color .2s,box-shadow .2s}
+button:active:not(:disabled){transform:scale(.97)}
+button.primary{box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 30%,transparent);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff),var(--accent))}
+.top{margin-bottom:14px;align-items:center}
+.top .hello{font-size:.88rem;color:var(--muted);margin-bottom:2px}
+.top h1{font-size:1.55rem}
+.top .sub{font-size:.82rem}
+.cchip{background:color-mix(in srgb,var(--surface) 70%,transparent);border-color:transparent;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.chip{border-color:transparent;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.card{border:0;border-radius:22px;padding:26px 22px;box-shadow:var(--shadow-lg),inset 0 3px 0 var(--accent)}
+.q{font-size:1.4rem}
+.note{border-radius:14px;background:color-mix(in srgb,var(--accent) 6%,var(--bg))}
+.grades button{border-width:0!important;padding:12px 4px;border-radius:14px}
+.g1{background:color-mix(in srgb,var(--again) 13%,var(--surface))!important}
+.g2{background:color-mix(in srgb,var(--hard) 13%,var(--surface))!important}
+.g3{background:color-mix(in srgb,var(--good) 15%,var(--surface))!important}
+.g4{background:color-mix(in srgb,var(--easy) 13%,var(--surface))!important}
+.conf button{border-radius:14px;padding:13px 6px}
+.dock{border-top:0;box-shadow:0 -6px 24px rgba(0,0,0,.06)}
+.bnav{border-top:0;box-shadow:0 -4px 20px rgba(0,0,0,.06)}
+.bnav button[aria-current="page"] svg{background:color-mix(in srgb,var(--accent) 14%,transparent);border-radius:999px;padding:3px 14px;box-sizing:content-box;margin:-3px 0}
+.item{border:0;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.summary .stat{border:0;border-radius:16px;box-shadow:var(--shadow)}
+.today .trow{border-bottom:0;padding:10px 12px;border-radius:14px;background:color-mix(in srgb,var(--accent) 5%,var(--bg))}
+.today{gap:8px}
+.ring{width:42px;height:42px;flex:none}
+.ring circle{fill:none;stroke-width:5}
+.ring .bg{stroke:var(--soft)}
+.ring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.ring text{font:700 11px var(--body);fill:var(--ink)}
+.trow .tl{display:flex;align-items:center;gap:12px}
+@media (prefers-reduced-motion:no-preference){
+ #app.navd>*{animation:rise .28s ease-out both}
+ #app.navd>*:nth-child(2){animation-delay:.03s}
+ #app.navd>*:nth-child(3){animation-delay:.06s}
+ @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+}
+/* concept map */
+.cmap{position:relative;display:flex;flex-direction:column;gap:22px;padding:6px 0 4px}
+.cmap svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+.cmap svg.edges path{fill:none;stroke:var(--line);stroke-width:1.5}
+.cmap svg.edges path.hot{stroke:var(--accent);stroke-width:2.2}
+.cmap .lvl{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 8px;position:relative;z-index:1}
+.cn{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:6px 12px 6px 11px;font-size:.84rem;font-weight:600;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);box-shadow:none;line-height:1.25}
+.cn svg{width:15px;height:15px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cn.locked{border-style:dashed;color:var(--muted);background:transparent;font-weight:500}
+.cn.open{border-color:var(--accent);color:var(--accent)}
+.cn.learn{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 16%,var(--surface))}
+.cn.young{border-color:transparent;background:color-mix(in srgb,var(--accent) 42%,var(--surface))}
+.cn.mature{border-color:transparent;background:var(--accent);color:var(--accent-ink)}
+.cn.sel{outline:2.5px solid var(--ink);outline-offset:2px}
+.cn.dim{opacity:.35}
+@media (prefers-reduced-motion:no-preference){.cn.grow{animation:grow 1.1s ease-out 2}@keyframes grow{0%{transform:scale(1)}35%{transform:scale(1.14);box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 25%,transparent)}100%{transform:scale(1)}}}
+.cmhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.cmlegend{display:flex;flex-wrap:wrap;gap:6px 8px;font-size:.75rem}
+.cmlegend .cn{font-size:.72rem;padding:2px 8px;pointer-events:none}
+.cmdet{background:color-mix(in srgb,var(--accent) 6%,var(--bg));border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.cmdet b.t{font-size:1.05rem}
+.cmdet .rel{font-size:.85rem;color:var(--muted)}
+.garden{display:flex;flex-wrap:wrap;gap:4px}
+.garden i{width:12px;height:12px;border-radius:50%;background:var(--soft);display:block}
+.garden i.open{background:transparent;box-shadow:inset 0 0 0 1.5px var(--accent)}
+.garden i.learn{background:color-mix(in srgb,var(--accent) 30%,var(--surface))}
+.garden i.young{background:color-mix(in srgb,var(--accent) 60%,var(--surface))}
+.garden i.mature{background:var(--accent)}
+.gpanel{cursor:pointer}
+.grew{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 </style>
 </head>
 <body>
@@ -284,7 +361,7 @@ const LEARN_STEPS=[1,10];
 const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
 const DECAY=-0.5, FACTOR=19/81;
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.8', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.9', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -746,7 +823,7 @@ function startSession(chain){
   const rr=[];const lists=LECS.map(l=>byL[l[0]]||[]);let k=0;const total=lists.reduce((a,b)=>a+b.length,0);
   while(rr.length<total){for(const a of lists)if(a[k])rr.push(a[k]);k++}
   const ordered=prereqOrder(rr.filter(id=>BYID[id].k!=='rev'||!isNew(BYID[id].nid)));
-  session={mode:'srs',newQueue:ordered.slice(0,c.newAvail),done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),cur:null,chain:!!chain};
+  session={mode:'srs',cst:conceptStages(),newQueue:ordered.slice(0,c.newAvail),done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),cur:null,chain:!!chain};
   for(const id of session.newQueue){const L=BYID[id].t;if(lecMap(L)&&!P.maps[L]){session.pendingMap=L;break}}
   view='study';if(session.pendingMap){resetCardUI();render();window.scrollTo(0,0)}else nextCard();
 }
@@ -1051,12 +1128,89 @@ function bottomNav(){
 }
 let mapFrom='home';
 
+
+// ---------- greeting, rings ----------
+function greeting(){const hr=new Date().getHours();const g=hr<5?'לילה טוב':hr<12?'בוקר טוב':hr<17?'צהריים טובים':hr<21?'ערב טוב':'לילה טוב';
+  const d=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'][new Date().getDay()];return g+' · יום '+d}
+function doneToday(id){const Pp=id===COURSE?P:lsLoad('evo-srs-progress-v1'+sfxOf(id));return (Pp&&Pp.log&&Pp.log[today()]&&Pp.log[today()].t)||0}
+function ring(done,left){const tot=done+left;const f=tot?done/tot:1;const C=2*Math.PI*16;
+  const e=h('span',{});e.innerHTML=`<svg class="ring" viewBox="0 0 42 42" aria-hidden="true"><circle class="bg" cx="21" cy="21" r="16"/><circle class="fg" cx="21" cy="21" r="16" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-f)}" transform="rotate(-90 21 21)"/><text x="21" y="25" text-anchor="middle">${left?Math.round(100*f)+'%':'✓'}</text></svg>`;return e.firstChild}
+// ---------- concept map: each concept grows from locked to a tree ----------
+const STAGE_ORDER=['locked','open','learn','young','mature'];
+const STAGE_NAME={locked:'נעול',open:'פתוח ללמידה',learn:'נבט: בלמידה',young:'שתיל: בחזרות',mature:'עץ: זיכרון יציב (21+ יום)'};
+const STAGE_ICON={
+ locked:'<svg viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>',
+ open:'<svg viewBox="0 0 16 16"><ellipse cx="8" cy="10" rx="3" ry="2.2"/><path d="M8 7.8V6"/></svg>',
+ learn:'<svg viewBox="0 0 16 16"><path d="M8 14V8"/><path d="M8 8.5C8 6 6.5 4.8 3.8 4.8c0 2.6 1.6 3.7 4.2 3.7z"/></svg>',
+ young:'<svg viewBox="0 0 16 16"><path d="M8 14V6.5"/><path d="M8 9C8 6.5 6.3 5.3 3.5 5.3c0 2.6 1.8 3.7 4.5 3.7z"/><path d="M8 7C8 4.5 9.7 3.2 12.5 3.2c0 2.7-1.8 3.8-4.5 3.8z"/></svg>',
+ mature:'<svg viewBox="0 0 16 16"><path d="M8 14.5V10"/><circle cx="8" cy="6.5" r="4.3"/></svg>'};
+function cDeps(k){const out=new Set();for(const nid of CDEF[k]||[])for(const u of NUSE[nid]||[])if(u!==k&&(CDEF[u]||[]).length)out.add(u);return [...out]}
+function cLec(k){const n=NBYID[(CDEF[k]||[])[0]];return n?n.t:null}
+function cStage(k){
+  const ids=(CDEF[k]||[]).flatMap(nid=>NCARDS[nid]||[]);let best=-1;
+  for(const id of ids){const s=P.cards[id];if(!s)continue;const v=s.q==='review'?((s.ivl||0)>=21?3:2):1;if(v>best)best=v}
+  if(best<0)return cDeps(k).every(d=>conceptKnown(d))?'open':'locked';
+  return ['learn','young','mature'][best-1];
+}
+function conceptStages(){const o={};for(const c of CONC)if((CDEF[c.n]||[]).length)o[c.n]=cStage(c.n);return o}
+let cmSel=null;const CM_DRAW=[];window.addEventListener('resize',()=>{for(let i=CM_DRAW.length-1;i>=0;i--){if(CM_DRAW[i].dead)CM_DRAW.splice(i,1)}CM_DRAW.forEach(f=>f())});
+function cmapPanel(){
+  const st=conceptStages();const names=Object.keys(st);
+  if(!names.length)return h('section',{class:'panel stack'},h('h2',{},'מפת המושגים'),h('p',{class:'sub'},'עוד אין מושגים לקורס הזה. הם יתווספו עם ההרצאה הבאה.'));
+  const LK='evo-cmap'+sfx();let prev={};try{prev=JSON.parse(localStorage.getItem(LK)||'{}')}catch(e){}
+  const grew=new Set(names.filter(k=>prev[k]&&STAGE_ORDER.indexOf(st[k])>STAGE_ORDER.indexOf(prev[k])));
+  try{localStorage.setItem(LK,JSON.stringify(st))}catch(e){}
+  const cnt=x=>names.filter(k=>st[k]===x).length;const known=names.length-cnt('locked')-cnt('open');
+  const lecs=LECS.map(l=>l[0]).filter(L=>names.some(k=>cLec(k)===L)&&(lecFilter==='all'||lecFilter===L));
+  const wrap=h('section',{class:'panel stack'},
+    h('div',{class:'cmhead'},h('h2',{style:'margin:0'},'מפת המושגים'),h('span',{class:'sub'},known+' מתוך '+names.length+' נלמדו · '+cnt('mature')+' עצים')),
+    h('p',{class:'sub',style:'margin:0'},'כל מושג נפתח כשהמושגים שהוא נשען עליהם נלמדו, וגדל מנבט לעץ ככל שהזיכרון שלו מתייצב. הקש על מושג כדי לראות על מה הוא בנוי.'),
+    LECS.length>1?lecChips():null);
+  const det=h('div',{});
+  for(const L of lecs){
+    const ks=names.filter(k=>cLec(k)===L);
+    const memo={};const depth=(k,seen)=>{if(memo[k]!=null)return memo[k];if(seen.has(k))return 0;seen.add(k);const ds=cDeps(k).filter(d=>cLec(d)===L&&ks.includes(d));const v=ds.length?1+Math.max(...ds.map(d=>depth(d,seen))):0;seen.delete(k);return memo[k]=v};
+    const levels=[];for(const k of ks){const d=depth(k,new Set());(levels[d]=levels[d]||[]).push(k)}
+    const map=h('div',{class:'cmap'});const svgNS='http://www.w3.org/2000/svg';const svg=document.createElementNS(svgNS,'svg');svg.setAttribute('class','edges');map.append(svg);
+    const rel=cmSel?new Set([cmSel,...cDeps(cmSel),...names.filter(k=>cDeps(k).includes(cmSel))]):null;
+    const nodes={};
+    for(const lv of levels.filter(Boolean)){const row=h('div',{class:'lvl'});
+      for(const k of lv){const b=h('button',{class:'cn '+st[k]+(cmSel===k?' sel':'')+(rel&&!rel.has(k)?' dim':'')+(grew.has(k)?' grow':''),title:STAGE_NAME[st[k]],on:{click:()=>{cmSel=cmSel===k?null:k;render()}}});
+        b.innerHTML=STAGE_ICON[st[k]];b.append(document.createTextNode(k));nodes[k]=b;row.append(b)}
+      map.append(row)}
+    const draw=()=>{if(!map.isConnected){draw.dead=1;return}const R=map.getBoundingClientRect();svg.innerHTML='';
+      for(const k of ks)for(const d of cDeps(k)){if(!nodes[d]||!nodes[k])continue;const a=nodes[d].getBoundingClientRect(),b=nodes[k].getBoundingClientRect();
+        const x1=a.left+a.width/2-R.left,y1=a.bottom-R.top,x2=b.left+b.width/2-R.left,y2=b.top-R.top;const my=(y1+y2)/2;
+        const pth=document.createElementNS(svgNS,'path');pth.setAttribute('d',`M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`);
+        if(cmSel&&(k===cmSel||d===cmSel))pth.setAttribute('class','hot');svg.append(pth)}};
+    requestAnimationFrame(draw);CM_DRAW.push(draw);
+    if(lecs.length>1||LECS.length>1)wrap.append(h('div',{class:'sub',style:'font-weight:700;margin-bottom:-6px'},lecName(L)));
+    wrap.append(map);
+  }
+  if(cmSel&&st[cmSel]){const k=cmSel,s=st[k];const n=NBYID[(CDEF[k]||[])[0]];const deps=cDeps(k);const opens=names.filter(x=>cDeps(x).includes(k));
+    const seen=STAGE_ORDER.indexOf(s)>=2;
+    det.append(h('div',{class:'cmdet'},h('b',{class:'t'},k),h('span',{class:'sub'},STAGE_NAME[s]),
+      seen&&n?h('div',{},n.k==='qa'?[h('b',{},n.f),' ',n.b]:plain(n.x)):h('div',{class:'sub'},s==='locked'?'עוד נעול: קודם צריך ללמוד את המושגים שהוא נשען עליהם.':'פתוח: הוא יופיע בין הכרטיסים החדשים הבאים.'),
+      deps.length?h('div',{class:'rel'},'נשען על: '+deps.map(d=>d+(STAGE_ORDER.indexOf(st[d]||'learn')>=2?' ✓':'')).join(' · ')):null,
+      opens.length?h('div',{class:'rel'},'פותח את: '+opens.join(' · ')):null));
+    wrap.append(det)}
+  wrap.append(h('div',{class:'cmlegend'},...STAGE_ORDER.map(x=>{const e=h('span',{class:'cn '+x});e.innerHTML=STAGE_ICON[x];e.append(document.createTextNode(STAGE_NAME[x].split(':')[0]));return e})));
+  return wrap;
+}
+function gardenTeaser(){
+  const st=conceptStages();const names=Object.keys(st);if(!names.length)return null;
+  const known=names.filter(k=>STAGE_ORDER.indexOf(st[k])>=2).length;
+  return h('section',{class:'panel stack gpanel',style:'gap:10px',on:{click:()=>{view='stats';render();window.scrollTo(0,0)}}},
+    h('div',{class:'cmhead'},h('h2',{style:'margin:0'},'הגינה שלך'),h('span',{class:'sub'},known+'/'+names.length+' מושגים ←')),
+    h('div',{class:'garden','aria-label':'מצב המושגים'},...names.sort((a,b)=>STAGE_ORDER.indexOf(st[b])-STAGE_ORDER.indexOf(st[a])).map(k=>h('i',{class:st[k],title:k}))));
+}
+
 // ---------- rendering ----------
 function render(){
   const y=window.scrollY;app.innerHTML='';paintCourse();app.classList.toggle('studying',view==='study');app.classList.toggle('navd',view!=='study');
   document.querySelectorAll('.bnav').forEach(e=>e.remove());
   if(view!=='study'){
-    app.append(h('div',{class:'top'},h('div',{},h('h1',{},courseObj().name),h('div',{class:'sub'},CARDS.length+' כרטיסים · חזרות')),h('div',{class:'sync',id:'sync'})));
+    app.append(h('div',{class:'top'},h('div',{},h('div',{class:'hello'},greeting()),h('h1',{},courseObj().name),h('div',{class:'sub'},CARDS.length+' כרטיסים · '+CONC.length+' מושגים')),h('div',{class:'sync',id:'sync'})));
     app.append(h('div',{class:'cchips',role:'group','aria-label':'קורס'},...COURSES.map(c=>h('button',{class:'cchip','aria-pressed':String(COURSE===c.id),on:{click:()=>switchCourse(c.id)}},h('i',{style:'background:'+(COURSE_COLOR[c.id]||'#888')}),c.short))));
     document.body.append(bottomNav());
   }
@@ -1068,7 +1222,7 @@ function switchCourse(id){
   lsSave(LS_P,P);lsSave(LS_D,D);flushPending();
   COURSE=id;try{localStorage.setItem(LS_COURSE,id)}catch(e){}
   applyCourse();P=blankProgress();D=blankDeck();
-  lecFilter='all';session=null;quiz=null;exam=null;recall=null;pq=null;flagOpen=null;editing=null;browseQ='';undoStack=[];if(view==='study'||view==='map')view='home';
+  lecFilter='all';session=null;quiz=null;exam=null;recall=null;pq=null;flagOpen=null;cmSel=null;editing=null;browseQ='';undoStack=[];if(view==='study'||view==='map')view='home';
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);
   rebuild();render();window.scrollTo(0,0);pull().then(()=>{if(view==='home')render()});
 }
@@ -1079,8 +1233,8 @@ function todayPanel(){
   const rows=COURSES.map(c=>({c,k:courseCounts(c.id)}));const all=rows.reduce((a,r)=>a+r.k.total,0);
   const startAll=()=>{const first=rows.find(r=>r.c.id===COURSE&&r.k.total)||rows.find(r=>r.k.total);if(!first)return;if(first.c.id!==COURSE)switchCourse(first.c.id);startSession(true)};
   return h('section',{class:'panel today'},h('h2',{},'היום'),
-    ...rows.map(r=>h('div',{class:'trow'},h('div',{},h('div',{class:'tname'},r.c.short),
-      h('div',{class:'tnum'},r.k.total?[h('b',{},r.k.newAvail),' חדשים · ',h('b',{},r.k.learn+r.k.review),' לחזרה']:'אין מה ללמוד היום ✓')),
+    ...rows.map(r=>h('div',{class:'trow'},h('div',{class:'tl'},ring(doneToday(r.c.id),r.k.total),h('div',{},h('div',{class:'tname'},r.c.short),
+      h('div',{class:'tnum'},r.k.total?[h('b',{},r.k.newAvail),' חדשים · ',h('b',{},r.k.learn+r.k.review),' לחזרה']:'אין מה ללמוד היום ✓'))),
       r.k.total?h('button',{on:{click:()=>{if(r.c.id!==COURSE)switchCourse(r.c.id);startSession(false)}}},'רק את זה'):null)),
     h('button',{class:'primary',disabled:!all,on:{click:startAll}},all?'התחל את כל החזרות של היום':'סיימת הכול להיום'));
 }
@@ -1114,7 +1268,7 @@ function renderHome(){
       h('p',{class:'sub'},'כל כרטיס מתוזמן לחזור לפני המבחן גם אם המרווח שלו ארוך יותר.'),dl<=14?h('p',{class:'boost'},'מצב לפני מבחן: יעד הזכירה עלה ל-95%, כך שהכרטיסים חוזרים בתדירות גבוהה יותר.'):h('p',{class:'sub'},'בשבועיים האחרונים יעד הזכירה יעלה אוטומטית ל-95%.'),
       h('div',{class:'row'},h('button',{on:{click:()=>startCram('all')}},'חזרה כללית על כל מה שלמדתי'),h('label',{class:'row sub',for:'examDate'},'תאריך',dateIn)));}
   const exam=h('section',{class:'panel'},h('h2',{},'מבחן'),examBody);
-  app.append(h('div',{class:'stack'},...homeBanners(),todayPanel(),mq,hero,exam));
+  app.append(h('div',{class:'stack'},...homeBanners(),todayPanel(),gardenTeaser(),mq,hero,exam));
 }
 function renderProgress(){
   const dl=daysToExam();
@@ -1144,7 +1298,7 @@ function renderProgress(){
       h('ul',{class:'weak'},...weak.slice(0,8).map(c=>{const q=cardQA(c);return h('li',{},h('span',{},c.k==='cz'?q.answer+' · '+plain(q.n.x).slice(0,60)+'…':(c.k==='rev'?q.answer:q.n.f)),h('span',{class:'lapses'},(st(c.id).ill?'בטוח וטעית '+st(c.id).ill+'× · ':'')+'נשכח '+(st(c.id).lapses||0)+'×'))})),
       h('div',{class:'row'},h('button',{on:{click:()=>startCram('weak')}},'תרגול ממוקד ב-'+weak.length+' הקשים'),h('span',{class:'sub'},'לא משנה את לוח החזרות')))
     :h('p',{class:'sub'},'כרטיס שתשכח פעמיים, או שהיית בטוח בו וטעית, יופיע כאן ותוכל לתרגל אותו בנפרד.'));
-  app.append(h('div',{class:'stack'},stats,lecs,fcs,weakP));
+  app.append(h('div',{class:'stack'},cmapPanel(),stats,lecs,fcs,weakP));
 }
 function studySettings(){
   const reset=h('button',{class:'danger',on:{click:()=>{if(!reset.classList.contains('arm')){reset.classList.add('arm');reset.textContent='בטוח? כל ההתקדמות תימחק';setTimeout(()=>{reset.classList.remove('arm');reset.textContent='אפס התקדמות'},3500);return}
@@ -1202,7 +1356,12 @@ function sessionSummary(s){
   const msgs=[];
   if(s.ill)msgs.push((s.ill===1?'פעם אחת':s.ill+' פעמים')+' היית בטוח וטעית. זה בדיוק המקום שבו הלמידה הכי משתלמת: הכרטיסים האלה יחזרו מהר יותר.');
   if(s.done>=10&&acc<70)msgs.push('אחוז ה"שוב" גבוה היום. זה בסדר בתחילת הרצאה חדשה; אם זה נמשך, כדאי להוריד את מספר הכרטיסים החדשים ביום.');
-  return h('div',{class:'stack',style:'align-items:center;gap:10px;width:100%'},box,...msgs.map(m=>h('p',{class:'msg'},m)));
+  let grow=null;
+  if(s.cst){const now=conceptStages();const up=Object.keys(now).filter(k=>s.cst[k]&&STAGE_ORDER.indexOf(now[k])>STAGE_ORDER.indexOf(s.cst[k])&&STAGE_ORDER.indexOf(now[k])>=2);
+    if(up.length)grow=h('div',{class:'stack',style:'gap:8px;align-items:center'},h('div',{class:'sub'},up.length===1?'מושג אחד צמח בגינה שלך היום':up.length+' מושגים צמחו בגינה שלך היום'),
+      h('div',{class:'grew'},...up.slice(0,12).map(k=>{const e=h('span',{class:'cn '+now[k]+' grow'});e.innerHTML=STAGE_ICON[now[k]];e.append(document.createTextNode(k));return e})),
+      h('button',{on:{click:()=>{view='stats';render();window.scrollTo(0,0)}}},'למפת המושגים'))}
+  return h('div',{class:'stack',style:'align-items:center;gap:10px;width:100%'},box,grow,...msgs.map(m=>h('p',{class:'msg'},m)));
 }
 function cardView(c){
   if(editing!==c.nid&&teachable(c))return teachView(c);
