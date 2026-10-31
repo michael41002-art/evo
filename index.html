@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>חזרות אבולוציה</title>
-<meta name="description" content="חזרה מרווחת לקורס מבוא לאבולוציה ואקולוגיה">
+<title>חזרות</title>
+<meta name="description" content="חזרה מרווחת לקורסים שלי">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1E6B57">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="אבולוציה">
+<meta name="apple-mobile-web-app-title" content="חזרות">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -199,6 +199,51 @@ figcaption{font-size:.82rem;color:var(--muted);text-align:center}
 .banner button{padding:6px 12px}
 body{-webkit-tap-highlight-color:transparent}
 #app{padding-top:max(18px,env(safe-area-inset-top,0px))}
+
+/* v1.7: course colour, bottom navigation, zoom, session summary, contrast drills */
+:root[data-course="cell"]{--accent:#2B5C9A;--accent-ink:#FFFFFF}
+@media (prefers-color-scheme: dark){:root[data-course="cell"]:not([data-theme="light"]){--accent:#86B0EC;--accent-ink:#0D1218}}
+:root[data-theme="dark"][data-course="cell"]{--accent:#86B0EC;--accent-ink:#0D1218}
+.top h1{color:var(--accent)}
+.cchips{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.cchip{border-radius:999px;padding:5px 14px;font-size:.9rem;display:inline-flex;align-items:center;gap:7px}
+.cchip i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.cchip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.cchip[aria-pressed="true"] i{background:var(--accent-ink)!important}
+.card{box-shadow:inset 0 3px 0 var(--accent)}
+#app.navd{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+.bnav{position:fixed;inset-inline:0;bottom:0;z-index:6;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:4px max(8px,env(safe-area-inset-left,0px)) env(safe-area-inset-bottom,0px)}
+.bnav .in{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+.bnav button{border:0;background:none;border-radius:10px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px 7px;font-size:.74rem;font-weight:600;color:var(--muted)}
+.bnav button svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.bnav button[aria-current="page"]{color:var(--accent)}
+.bnav button[aria-current="page"] svg{stroke-width:2.3}
+.bnav button .dot{position:absolute;margin-inline-start:22px;margin-top:-2px;min-width:16px;height:16px;border-radius:8px;background:var(--again);color:#fff;font-size:.66rem;line-height:16px;padding:0 4px;box-sizing:border-box}
+.bnav button{position:relative}
+#app.navd ~ .toast,.navd-toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+figure img{cursor:zoom-in}
+.zoom{position:fixed;inset:0;z-index:40;background:rgba(10,14,12,.97);overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom}
+.zoom .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:56px 10px 20px;box-sizing:border-box}
+.zoom img{max-width:100%;max-height:calc(100vh - 90px);background:#fff;border-radius:6px;cursor:zoom-in}
+.zoom.big .wrap{display:block}
+.zoom.big img{max-width:none;max-height:none;width:220%;cursor:zoom-out}
+.zoom .x{position:fixed;top:max(10px,env(safe-area-inset-top,0px));inset-inline-start:10px;z-index:41;background:rgba(255,255,255,.14);color:#fff;border:0;font-size:1.05rem;padding:8px 14px}
+.zoom .cap{position:fixed;bottom:0;inset-inline:0;color:#dfe6e2;font-size:.85rem;text-align:center;padding:8px 14px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(10,14,12,.7)}
+.summary{width:100%;max-width:440px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;text-align:start}
+.summary .stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.summary .stat b{display:block;font-size:1.5rem;font-variant-numeric:tabular-nums}
+.summary .stat span{font-size:.85rem;color:var(--muted)}
+.done .msg{max-width:440px;color:var(--muted);font-size:.95rem}
+.cmpt{display:grid;gap:8px}
+.cmpt .t{background:var(--bg);border-radius:10px;padding:10px 12px}
+.cmpt .t b{display:block;color:var(--accent)}
+.dopts{display:grid;gap:8px}
+.dopts button{padding:12px 10px;font-weight:700}
+.dopts button.right{border-color:var(--good);background:color-mix(in srgb,var(--good) 14%,var(--surface))}
+.dopts button.wrong{border-color:var(--again);background:color-mix(in srgb,var(--again) 14%,var(--surface))}
+.flagbox{display:flex;flex-direction:column;gap:6px;background:var(--bg);border-radius:10px;padding:10px 12px}
+.meta .flagged{color:var(--hard);font-weight:700}
+.boost{font-size:.85rem;color:var(--accent);font-weight:600}
 </style>
 </head>
 <body>
@@ -223,6 +268,8 @@ const EVO_MCQ=[{"id": "emc101", "t": "הרצאה_1_הבנת_האבולוציה",
 let COURSE=(()=>{try{const c=localStorage.getItem(LS_COURSE);return COURSES.some(x=>x.id===c)?c:'evo'}catch(e){return 'evo'}})();
 let BASE=[], CUR_LECTURES=[];
 function courseObj(){return COURSES.find(c=>c.id===COURSE)}
+const COURSE_COLOR={evo:'#1E6B57',cell:'#2B5C9A'};
+function paintCourse(){document.documentElement.dataset.course=COURSE;const m=document.querySelector('meta[name=theme-color]');if(m)m.setAttribute('content',COURSE_COLOR[COURSE]||'#1E6B57')}
 // each course keeps its own cards, progress and settings; the evolution course keeps the original keys
 function sfx(){return sfxOf(COURSE)}
 function sfxOf(id){return id==='evo'?'':':'+id}
@@ -234,7 +281,7 @@ const LEARN_STEPS=[1,10];
 const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
 const DECAY=-0.5, FACTOR=19/81;
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.6', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.7', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -245,8 +292,8 @@ let NOTES=[], NBYID={}, CARDS=[], BYID={}, LECS=[];
 let syncState='local';
 const app=document.getElementById('app');
 
-function blankProgress(){return {v:1,updatedAt:0,cards:{},log:{},recall:[],exams:[],maps:{},settings:{newPerDay:15,typeAnswer:false,reverse:true,retention:0.9,examDate:'',autoPace:true}}}
-function blankDeck(){return {v:1,updatedAt:0,edits:{},added:[],lectures:[],mcq:[]}}
+function blankProgress(){return {v:1,updatedAt:0,cards:{},log:{},recall:[],exams:[],maps:{},mcqS:{},settings:{newPerDay:15,typeAnswer:false,reverse:true,retention:0.9,examDate:'',autoPace:true}}}
+function blankDeck(){return {v:1,updatedAt:0,edits:{},added:[],lectures:[],mcq:[],pairs:[],flags:{}}}
 function pad(n){return String(n).padStart(2,'0')}
 function dayKeyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function dayKey(t){return dayKeyOf(new Date(t-ROLL*HOUR))}
@@ -362,8 +409,8 @@ async function pull(){
 }
 function updateSync(){const s=document.getElementById('sync');if(!s)return;
   s.textContent={local:'ההתקדמות נשמרת רק במכשיר הזה',loading:'מסנכרן…',synced:'ההתקדמות מסונכרנת ✓',error:'אין חיבור כרגע. ההתקדמות נשמרת במכשיר ותסונכרן אחר כך'}[syncState]}
-function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],rl:p.rl||[],exams:p.exams||[],maps:p.maps||{},settings:Object.assign(b.settings,p.settings||{})}}
-function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d.added||[],lectures:d.lectures||[],mcq:d.mcq||[]}}
+function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],rl:p.rl||[],exams:p.exams||[],maps:p.maps||{},mcqS:p.mcqS||{},settings:Object.assign(b.settings,p.settings||{})}}
+function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d.added||[],lectures:d.lectures||[],mcq:d.mcq||[],pairs:d.pairs||[],flags:d.flags||{}}}
 async function initStore(){
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);rebuild();render();
   await pull();pullOthers();
@@ -418,7 +465,9 @@ function importText(raw){
       else if((x.type==='qa'||x.k==='qa')&&(x.front||x.f)&&(x.back||x.b)){D.added.push({id,k:'qa',f:x.front||x.f,b:x.back||x.b,e:x.extra||x.e||'',t:key,img:x.img,cap:x.cap});n++}
       else if((x.type==='cloze'||x.k==='cz')&&clozeOk(x.text||x.x||'')){D.added.push({id,k:'cz',x:x.text||x.x,e:x.extra||x.e||'',t:key,img:x.img,cap:x.cap});n++}
     }
+    let np=0;if(Array.isArray(o.pairs)){D.pairs=D.pairs||[];for(const pr of o.pairs){if(!pr||!pr.id||!Array.isArray(pr.terms)||!Array.isArray(pr.items))continue;const i2=D.pairs.findIndex(x=>x.id===pr.id);const v=Object.assign({},pr,{t:pr.t||key});if(i2>=0)D.pairs[i2]=v;else D.pairs.push(v);np++}}
     rebuild();persist('deck');lecFilter='all';
+    if(np&&!n&&!nm)return {ok:true,msg:np+' זוגות מושגים להבחנה נוספו.'};
     return {ok:true,msg:(n||nm)?(n?n+' כרטיסים חדשים נוספו. ':'')+(nm?nm+' שאלות אמריקאיות נוספו לתרגול.':''):'כל הכרטיסים האלה כבר קיימים.'};
   }
   return {ok:false,msg:'זה לא נראה כמו גיבוי או חבילת כרטיסים.'};
@@ -512,7 +561,14 @@ function renderMore(){
   if(!isStandalone())inst=h('section',{class:'panel stack'},h('h2',{},'התקנה במסך הבית'),
     h('p',{},isIOS()?'ב-Safari: לחץ על כפתור השיתוף (הריבוע עם החץ) ובחר "הוספה למסך הבית".':'ב-Chrome: לחץ על ⋮ ובחר "הוספה למסך הבית" או "התקנת אפליקציה".'),
     h('p',{class:'sub'},'אחרי ההתקנה האפליקציה נפתחת במסך מלא ועובדת גם בלי אינטרנט. אם כבר חיברת סנכרון בדפדפן, תצטרך לחבר שוב מתוך האפליקציה המותקנת (או לפתוח בה את קישור החיבור).'));
-  app.append(h('div',{class:'stack'},sync,rem,imp,bak,inst,h('p',{class:'sub',style:'text-align:center'},'גרסה '+APP_VERSION)));
+  app.append(h('div',{class:'stack'},studySettings(),flagsPanel(),sync,rem,imp,bak,inst,h('p',{class:'sub',style:'text-align:center'},'חזרות · גרסה '+APP_VERSION)));
+}
+function flagsPanel(){
+  const f=D.flags||{};const ids=Object.keys(f);if(!ids.length)return null;
+  const label=id=>{const n=NBYID[id];if(n)return n.k==='qa'?n.f+' · '+n.b:plain(n.x);const m=(COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]).find(x=>x.id===id);return m?m.f:(f[id].l||id)};
+  return h('section',{class:'panel stack'},h('h2',{},'כרטיסים שסימנת כשגויים ('+ids.length+')'),
+    h('p',{class:'sub'},'בפעם הבאה שתעלה חומר לקורס הזה אבדוק אותם מול השקפים והסיכום ואתקן.'),
+    ...ids.map(id=>h('div',{class:'item'},h('div',{class:'line'},h('span',{class:'txt'},label(id)),h('button',{style:'padding:2px 10px;font-size:.85rem',on:{click:()=>unflag(id)}},'בטל')),f[id].c?h('div',{class:'sub'},'ההערה שלך: '+f[id].c):null)));
 }
 function homeBanners(){
   const out=[];
@@ -529,7 +585,8 @@ function homeBanners(){
 // ---------- FSRS scheduler ----------
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 function retr(t,S){return Math.pow(1+FACTOR*t/S,DECAY)}
-function ivlFor(S){const r=P.settings.retention||0.9;return Math.max(1,Math.round(S/FACTOR*(Math.pow(r,1/DECAY)-1)))}
+function effRet(){const r=P.settings.retention||0.9;const dl=daysToExam();return dl!=null&&dl>=0&&dl<=14?Math.max(r,0.95):r}
+function ivlFor(S){const r=effRet();return Math.max(1,Math.round(S/FACTOR*(Math.pow(r,1/DECAY)-1)))}
 function d0(g){return clamp(W[4]-W[5]*(g-3),1,10)}
 function nextD(Dv,g){const d=Dv-W[6]*(g-3);return clamp(W[7]*d0(4)+(1-W[7])*d,1,10)}
 function sRecall(Dv,S,R,g){const hp=g===2?W[15]:1, eb=g===4?W[16]:1;return S*(Math.exp(W[8])*(11-Dv)*Math.pow(S,-W[9])*(Math.exp(W[10]*(1-R))-1)*hp*eb+1)}
@@ -597,7 +654,7 @@ function startSession(chain){
   const rr=[];const lists=LECS.map(l=>byL[l[0]]||[]);let k=0;const total=lists.reduce((a,b)=>a+b.length,0);
   while(rr.length<total){for(const a of lists)if(a[k])rr.push(a[k]);k++}
   const ordered=rr.filter(id=>BYID[id].k!=='rev'||!isNew(BYID[id].nid));
-  session={mode:'srs',newQueue:ordered.slice(0,c.newAvail),done:0,again:0,cur:null,chain:!!chain};
+  session={mode:'srs',newQueue:ordered.slice(0,c.newAvail),done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),cur:null,chain:!!chain};
   for(const id of session.newQueue){const L=BYID[id].t;if(lecMap(L)&&!P.maps[L]){session.pendingMap=L;break}}
   view='study';if(session.pendingMap){resetCardUI();render();window.scrollTo(0,0)}else nextCard();
 }
@@ -617,7 +674,7 @@ function mapPanel(L,inSession){
     inSession?h('p',{class:'sub'},'דקה של קריאה: ככה כל כרטיס ייתלה על מסגרת, ולא יעמוד לבד. אפשר לחזור למפה בכל רגע ממסך הבית.'):null,
     mapHtml(lecMap(L)),
     h('div',{class:'row'},inSession?h('button',{class:'primary',on:{click:()=>{P.maps[L]=today();persist('progress');session.pendingMap=null;nextCard()}}},'הבנתי, מתחילים')
-      :h('button',{class:'primary',on:{click:()=>{view='home';render();window.scrollTo(0,0)}}},'חזרה')));
+      :h('button',{class:'primary',on:{click:()=>{view=mapFrom||'home';render();window.scrollTo(0,0)}}},'חזרה')));
 }
 let mapL=null;
 function renderMap(){if(mapL&&lecMap(mapL))app.append(mapPanel(mapL,false));else{view='home';renderHome()}}
@@ -625,7 +682,7 @@ function startCram(scope){
   undoStack=[];
   let ids=scope==='weak'?weakCards().map(c=>c.id):CARDS.filter(c=>inFilter(c)&&!isNew(c.id)).map(c=>c.id);
   ids=shuffle(ids);
-  session={mode:'cram',queue:ids,done:0,again:0,total:ids.length,cur:null};view='study';nextCard();
+  session={mode:'cram',queue:ids,done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),total:ids.length,cur:null};view='study';nextCard();
 }
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function resetCardUI(){revealed=false;typed='';check=null;editing=null;conf=null}
@@ -648,7 +705,7 @@ function nextCard(){
 }
 function answer(g){
   const id=session.cur;if(!id||!revealed)return;const now=Date.now();
-  if(session.mode==='cram'){session.queue.shift();session.done++;if(g===1){session.again++;session.queue.splice(Math.min(3,session.queue.length),0,id)}nextCard();return}
+  if(session.mode==='cram'){session.queue.shift();session.done++;if(g===1){session.again++;session.queue.splice(Math.min(3,session.queue.length),0,id);maybeDrill(id)}nextCard();return}
   const prev=P.cards[id]?JSON.parse(JSON.stringify(P.cards[id])):null;
   const lg=logToday();const prevLog=Object.assign({},lg);
   const wasNew=!prev, wasReview=prev&&prev.q==='review';
@@ -660,7 +717,8 @@ function answer(g){
   lg.t++;if(wasNew)lg.n++;if(wasReview){lg.r++;if(g>1)lg.ok++}
   if(wasNew)session.newQueue=session.newQueue.filter(x=>x!==id);
   undoStack.push({id,prev,prevLog,day:today(),wasNew});if(undoStack.length>20)undoStack.shift();
-  session.done++;if(g===1)session.again++;
+  session.done++;if(g===1)session.again++;if(wasNew)session.nNew++;if(conf==='sure'&&g===1)session.ill++;
+  if(g===1)maybeDrill(id);
   persist('progress');nextCard();
 }
 function undo(){
@@ -698,7 +756,7 @@ function cardQA(c){ // {promptHtml, backHtml, answer, extra, note}
   return {ask:'השלם את החסר',front:clozeFront(n.x,c.n),back:clozeBack(n.x,c.n),answer:clozeAnswer(n.x,c.n),extra:n.e||'',n};
 }
 function h(tag,attrs,...kids){const e=document.createElement(tag);for(const [k,v] of Object.entries(attrs||{})){if(k==='on')for(const [ev,fn] of Object.entries(v))e.addEventListener(ev,fn);else if(k==='html')e.innerHTML=v;else if(k==='value')e.value=v;else if(k==='checked')e.checked=!!v;else if(v!==false&&v!=null)e.setAttribute(k,v===true?'':v)}for(const k of kids.flat()){if(k==null||k===false)continue;e.append(k.nodeType?k:document.createTextNode(k))}return e}
-function toast(m){const t=h('div',{class:'toast',role:'status'},m);document.body.append(t);setTimeout(()=>t.remove(),2800)}
+function toast(m){const t=h('div',{class:'toast'+(view!=='study'?' navd-toast':''),role:'status'},m);document.body.append(t);setTimeout(()=>t.remove(),2800)}
 // ---------- editing ----------
 function saveNote(id,fields){
   const base=BASE.find(b=>b.id===id);
@@ -750,7 +808,8 @@ function mcqs(){return (COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]).filter(m=>l
 function buildQuiz(count){
   count=count||10;
   // questions written for the exam format come first; generated ones fill the rest
-  const auth=shuffle(mcqs()).slice(0,Math.round(count*0.7)).map(m=>({kind:'mc',n:{id:m.id,t:m.t,e:m.e},answer:m.o[0],promptHtml:esc(m.f),ask:'בחר את התשובה הנכונה',opts:shuffle(m.o),picked:null}));
+  const dueIds=new Set(mcqDue().map(m=>m.id));const pool=mcqs();
+  const auth=shuffle(pool.filter(m=>dueIds.has(m.id))).concat(shuffle(pool.filter(m=>!dueIds.has(m.id)))).slice(0,Math.round(count*0.7)).map(mcqItem);
   const gen=buildGenQuiz(count-auth.length);
   return {qs:shuffle(auth.concat(gen.qs)),i:0,score:0};
 }
@@ -771,28 +830,157 @@ function buildGenQuiz(count){
   return {qs,i:0,score:0};
 }
 
+
+// ---------- contrast drills: concepts that are easy to confuse ----------
+const EVO_PAIRS=[
+ {id:'e-hom',t:'הרצאה_2_ראיות_לאבולוציה',kw:['מבנים הומולוגיים','מתכנסת'],
+  terms:[['הומולוגיה','דמיון שנובע ממוצא משותף: אותה פריסה בסיסית, גם כשהתפקוד שונה'],['אבולוציה מתכנסת','תכונות דומות שמתפתחות באופן עצמאי במינים בלי מוצא משותף עדכני']],
+  items:[['עצמות הגפה של אדם, כלב, ציפור ולווייתן',0],['כנפיים אצל עטלפים וחרקים',1],['הדמיון נובע מאב קדמון משותף',0],['פתרון דומה שהתפתח בנפרד בקבוצות לא קרובות',1],['אותה פריסה בסיסית של עצמות, למרות תפקוד שונה',0]],
+  tip:'שאל מאיפה בא הדמיון: מאב משותף (הומולוגיה) או התפתחות עצמאית (התכנסות)?'},
+ {id:'e-spec',t:'הרצאה_3_מינים_והתמיינות',kw:['אלופטרית','סימפטרית'],
+  terms:[['התמיינות אלופטרית','בעקבות הפרדה גיאוגרפית של אוכלוסיות ואבולוציה נפרדת'],['התמיינות סימפטרית','בתוך מין אב שנשאר באותו מיקום']],
+  items:[['הינשוף המנוקד הצפוני והינשוף המקסיקני',0],['מאות מיני ציקלידים באגם ויקטוריה',1],['הפרדה גיאוגרפית מונעת זרימת גנים',0],['דגים באותו אגם שמנצלים מקור מזון בעומק אחר',1],['מין חדש שנוצר בפוליפלואידיה, באותו מקום עם מין האב',1]],
+  tip:'"אלו" = אחר: מקום אחר. "סים" = יחד: אותו מקום.'},
+ {id:'e-zyg',t:'הרצאה_3_מינים_והתמיינות',kw:['זיגוטי','בידוד זמנים','בידוד בית גידול','בידוד התנהגותי','מחסום גמטי','עקרות היברידית','עקרות הפרד'],
+  terms:[['מחסום פרה-זיגוטי','מונע הזדווגות או הפריה, כלומר פועל לפני שנוצרת זיגוטה'],['מחסום פוסט-זיגוטי','פועל אחרי שנוצרה זיגוטה: העובר לא שורד או שהצאצא עקר']],
+  items:[['שני מיני צפרדעים, אחד מתרבה בינואר–מרץ והשני במרץ–מאי',0],['גחליליות עם דפוס אור ייחודי לכל מין',0],['הפרד עקר',1],['הבדלים בביציות ובזרע שמונעים הפריה',0],['מכלואים שנולדים וגדלים אבל לא מתרבים',1],['אוכלוסיות שחיות בבתי גידול שאינם חופפים',0]],
+  tip:'השאלה היחידה: האם כבר נוצרה ביצית מופרית? אם לא, פרה. אם כן, פוסט.'},
+ {id:'e-poly',t:'הרצאה_3_מינים_והתמיינות',kw:['פוליפלואיד'],
+  terms:[['אוטופוליפלואידיה','ריבוי קבוצות כרומוזומים מהמין עצמו'],['אלופוליפלואידיה','צאצא בר-קיימא מגמטות של שני מינים שונים']],
+  items:[['ריבוי קבוצות כרומוזומים של מין אחד',0],['גמטות של שני מינים שונים יוצרות צאצא בר-קיימא',1],['מיוזה שאינה מלווה בציטוקינזיס',0],['חיטה, כותנה וטבק תרבותיים',1]],
+  tip:'"אוטו" = עצמי, מין אחד. "אלו" = אחר, שני מינים.'},
+ {id:'e-sel',t:'הרצאה_4_עץ_החיים_ושונות',kw:['ברירה כיוונית','ברירה מייצבת','ברירה מפצלת'],
+  terms:[['ברירה כיוונית','תכונה בקצה אחד של הטווח מועדפת'],['ברירה מייצבת','הקצוות נבררים לרעה, והממוצע מועדף'],['ברירה מפצלת','שני הקצוות מועדפים על פני הממוצע']],
+  items:[['עש הפלפל',0],['צוואר הג׳ירפה',0],['משקל לידה של תינוקות',1],['הממוצע מועדף והקצוות נעלמים',1],['שני הקצוות מועדפים על פני הממוצע',2],['כל האוכלוסייה זזה לכיוון קצה אחד',0]],
+  tip:'דמיין את עקומת הפעמון: זזה הצידה (כיוונית), נעשית צרה (מייצבת), או נחצית לשתיים (מפצלת).'},
+ {id:'e-geno',t:'הרצאה_1_הבנת_האבולוציה',kw:['גנוטיפ','פנוטיפ'],
+  terms:[['גנוטיפ','רצף הדנ"א של פרט מסוים'],['פנוטיפ','תכונה נראית או נמדדת']],
+  items:[['רצף הדנ"א של פרט מסוים',0],['תכונה נראית או נמדדת',1],['השונות בו = שונות גנטית + שונות סביבתית',1],['הכשירות מוגדרת כהצלחה היחסית שלו לשרוד ולהעמיד צאצאים פוריים',0]],
+  tip:'גנוטיפ = מה שכתוב בדנ"א. פנוטיפ = מה שרואים או מודדים.'},
+ {id:'e-flow',t:'הרצאה_3_מינים_והתמיינות',kw:['סחיפה','סחף גנטי','זרימת גנים'],
+  terms:[['סחיפה גנטית','שינויים במאגר הגנים של אוכלוסייה שנובעים ממקריות'],['זרימת גנים','תנועת אללים על פני תחום התפוצה של המין']],
+  items:[['שינוי בתדירות אללים שנובע ממקריות',0],['תנועת אללים בין אוכלוסיות של אותו מין',1],['הפרדה גיאוגרפית מונעת אותה',1]],
+  tip:'סחיפה = מקרה בתוך אוכלוסייה. זרימה = אללים שעוברים בין אוכלוסיות.'}
+];
+function pairsAll(){return (COURSE==='evo'?EVO_PAIRS:[]).concat(D.pairs||[])}
+function pairsHere(){return pairsAll().filter(p=>lecFilter==='all'||!p.t||p.t===lecFilter)}
+function pairFor(id){
+  const c=BYID[id];if(!c)return null;const n=NBYID[c.nid];if(!n)return null;
+  const txt=(n.f||'')+' '+(n.b||'')+' '+plain(n.x||'');let best=null,bs=0;
+  for(const p of pairsAll()){let k=0;for(const w of p.kw||[])if(txt.includes(w))k++;if(k>bs){bs=k;best=p}}
+  return best;
+}
+function maybeDrill(id){
+  if(!session)return;const p=pairFor(id);if(!p||session.drilled.has(p.id))return;
+  session.drilled.add(p.id);session.drill={p,items:shuffle(p.items).slice(0,4),i:0,picked:null,ok:0};
+}
+function drillView(){
+  const z=session.drill,p=z.p;
+  const done=()=>{session.drill=null;render();window.scrollTo(0,0)};
+  const tbl=h('div',{class:'cmpt'},...p.terms.map(t=>h('div',{class:'t'},h('b',{},t[0]),t[1])));
+  if(z.i>=z.items.length)return h('section',{class:'panel stack'},h('h2',{},'סיימת את ההבחנה'),h('p',{},z.ok+' מתוך '+z.items.length+' נכון.'),p.tip?h('p',{class:'sub'},p.tip):null,
+    h('button',{class:'primary',on:{click:done}},'חזרה לכרטיסים'));
+  const it=z.items[z.i];
+  return h('section',{class:'panel stack'},
+    h('div',{class:'sub'},'המושג הזה מתבלבל בקלות עם מושג קרוב. דקה של הבחנה ביניהם תחסוך את הטעות הבאה.'),
+    tbl,h('div',{class:'sub'},'דוגמה '+(z.i+1)+' מתוך '+z.items.length+': למה זה שייך?'),
+    h('div',{class:'q',style:'font-size:1.2rem'},it[0]),
+    h('div',{class:'dopts',style:`grid-template-columns:repeat(${p.terms.length},minmax(0,1fr))`},...p.terms.map((t,i)=>h('button',{class:z.picked==null?'':(i===it[1]?'right':i===z.picked?'wrong':''),disabled:z.picked!=null,
+      on:{click:()=>{z.picked=i;if(i===it[1])z.ok++;render()}}},t[0]))),
+    z.picked!=null?h('button',{class:'primary',on:{click:()=>{z.i++;z.picked=null;render()}}},z.i+1<z.items.length?'הבאה':'סיום'):
+      h('button',{on:{click:done}},'דלג'));
+}
+let pq=null;
+function renderPairs(){
+  const ps=pairsHere();
+  if(!ps.length){app.append(h('section',{class:'panel stack'},lecChips(),h('p',{class:'sub'},'אין עדיין זוגות מושגים להרצאה הזו.')));return}
+  if(!pq){const all=[];for(const p of ps)for(const it of p.items)all.push({p,it});pq={qs:shuffle(all).slice(0,12),i:0,score:0,picked:null,miss:new Set()}}
+  const z=pq;
+  if(z.i>=z.qs.length){const miss=ps.filter(p=>z.miss.has(p.id));
+    app.append(h('section',{class:'panel stack'},h('h2',{},'ציון: '+z.score+' מתוך '+z.qs.length),
+      miss.length?h('div',{class:'stack',style:'gap:8px'},h('p',{class:'sub'},'ההבחנות שכדאי לחזור עליהן:'),...miss.map(p=>h('div',{class:'item'},h('div',{class:'cmpt'},...p.terms.map(t=>h('div',{class:'t'},h('b',{},t[0]),t[1]))),p.tip?h('div',{class:'sub'},p.tip):null))):h('p',{},'מושלם!'),
+      h('div',{class:'row'},h('button',{class:'primary',on:{click:()=>{pq=null;render()}}},'סבב חדש'),lecChips())));return}
+  const x=z.qs[z.i],p=x.p;
+  app.append(h('div',{class:'stack'},h('div',{class:'row'},lecChips()),
+    h('div',{class:'progress'},h('i',{style:`width:${100*z.i/z.qs.length}%`})),
+    h('article',{class:'card'},h('div',{class:'meta'},h('span',{},`${z.i+1} מתוך ${z.qs.length}`),p.t?h('span',{},lecName(p.t)):null),h('div',{class:'ask'},'לאיזה מושג זה שייך?'),
+      h('div',{class:'q'},x.it[0]),
+      h('div',{class:'dopts',style:`grid-template-columns:repeat(${p.terms.length},minmax(0,1fr))`},...p.terms.map((t,i)=>h('button',{class:z.picked==null?'':(i===x.it[1]?'right':i===z.picked?'wrong':''),disabled:z.picked!=null,
+        on:{click:()=>{z.picked=i;if(i===x.it[1])z.score++;else z.miss.add(p.id);render()}}},t[0]))),
+      z.picked!=null?h('div',{class:'cmpt'},...p.terms.map(t=>h('div',{class:'t'},h('b',{},t[0]),t[1])),p.tip?h('div',{class:'sub'},p.tip):null):null),
+    z.picked!=null?h('button',{class:'primary reveal',on:{click:()=>{z.i++;z.picked=null;render();window.scrollTo(0,0)}}},z.i+1<z.qs.length?'הבאה':'לתוצאות'):h('p',{class:'sub'},'התרגול לא משנה את לוח החזרות.')));
+}
+// ---------- spaced repetition for multiple-choice questions you got wrong (Leitner boxes) ----------
+const MCQ_BOX=[1,3,7,16,35];
+function addDays(k,n){const [y,m,d]=k.split('-').map(Number);const t=new Date(y,m-1,d+n);return dayKeyOf(t)}
+function mcqResult(id,ok){
+  if(!id)return;P.mcqS=P.mcqS||{};const s=P.mcqS[id];
+  if(!ok){P.mcqS[id]={b:0,due:addDays(today(),MCQ_BOX[0])}}
+  else if(s){if(s.due>today())return;const b=s.b+1;if(b>=MCQ_BOX.length)delete P.mcqS[id];else P.mcqS[id]={b,due:addDays(today(),MCQ_BOX[b])}}
+  else return;
+  persist('progress');
+}
+function mcqDue(){const t=today();const all=(COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]);return all.filter(m=>P.mcqS&&P.mcqS[m.id]&&P.mcqS[m.id].due<=t)}
+function mcqItem(m){return {kind:'mc',n:{id:m.id,t:m.t,e:m.e},answer:m.o[0],promptHtml:esc(m.f),ask:'בחר את התשובה הנכונה',opts:shuffle(m.o),picked:null}}
+function startMcqReview(){const due=mcqDue();if(!due.length)return;lecFilter='all';pmode='mcq';exam=null;recall=null;quiz={qs:shuffle(due).slice(0,20).map(mcqItem),i:0,score:0,review:true};view='quiz';render();window.scrollTo(0,0)}
+// ---------- "there is a mistake here" flags ----------
+let flagOpen=null;
+function flagBox(id,label){
+  const ta=h('textarea',{dir:'auto',rows:'2',placeholder:'מה נראה לך שגוי? (לא חובה)'});
+  return h('div',{class:'flagbox'},h('b',{style:'font-size:.85rem'},'יש פה טעות?'),h('span',{class:'sub'},'הכרטיס יסומן, ואבדוק אותו מול השקפים בפעם הבאה שתעלה חומר.'),ta,
+    h('div',{class:'row'},h('button',{class:'primary',on:{click:()=>{D.flags=D.flags||{};D.flags[id]={c:ta.value.trim(),d:today(),l:label||''};flagOpen=null;persist('deck');toast('סומן לבדיקה. תודה!');render()}}},'סמן לבדיקה'),
+      h('button',{on:{click:()=>{flagOpen=null;render()}}},'ביטול')));
+}
+function unflag(id){if(D.flags&&D.flags[id]){delete D.flags[id];persist('deck');toast('הסימון הוסר');render()}}
+// ---------- image zoom ----------
+function zoomImg(src,cap){
+  const ov=h('div',{class:'zoom',role:'dialog','aria-label':'תמונה מוגדלת'});
+  const close=()=>{ov.remove();document.removeEventListener('keydown',esc1);if(history.state&&history.state.zoom)history.back()};
+  const esc1=e=>{if(e.key==='Escape')close()};
+  const img=h('img',{src,alt:cap||''});img.addEventListener('click',e=>{e.stopPropagation();ov.classList.toggle('big')});
+  ov.append(h('button',{class:'x',on:{click:close}},'✕ סגירה'),h('div',{class:'wrap',on:{click:e=>{if(e.target===e.currentTarget)close()}}},img),cap?h('div',{class:'cap'},cap+' · הקש על התמונה להגדלה'):null);
+  document.body.append(ov);document.addEventListener('keydown',esc1);
+  try{history.pushState({zoom:1},'');const pop=()=>{window.removeEventListener('popstate',pop);if(ov.isConnected){ov.remove();document.removeEventListener('keydown',esc1)}};window.addEventListener('popstate',pop)}catch(e){}
+}
+// ---------- bottom navigation ----------
+const ICONS={
+ home:'<svg viewBox="0 0 24 24"><rect x="4" y="7" width="14" height="12" rx="2"/><path d="M8 4h10a2 2 0 0 1 2 2v9"/></svg>',
+ quiz:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.4"/><path d="M12 16.8v.2"/></svg>',
+ stats:'<svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-4"/><path d="M12 16V7"/><path d="M17 16v-7"/></svg>',
+ browse:'<svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>',
+ more:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>'};
+function bottomNav(){
+  const tabs=[['home','לימוד'],['quiz','תרגול'],['stats','התקדמות'],['browse','כרטיסים'],['more','הגדרות']];
+  const cur=view==='map'?mapFrom:view;
+  return h('nav',{class:'bnav','aria-label':'ניווט'},h('div',{class:'in'},...tabs.map(([k,v])=>{const b=h('button',{'aria-current':cur===k?'page':false,on:{click:()=>{view=k;if(k==='quiz'){quiz=null;exam=null;recall=null;pq=null}render();window.scrollTo(0,0)}}});
+    b.innerHTML=ICONS[k];b.append(h('span',{},v));
+    if(k==='quiz'){const n=mcqDue().length;if(n)b.append(h('span',{class:'dot'},n))}
+    return b})));
+}
+let mapFrom='home';
+
 // ---------- rendering ----------
 function render(){
-  const y=window.scrollY;app.innerHTML='';app.classList.toggle('studying',view==='study');
-  if(view!=='study')app.append(h('div',{class:'top'},h('div',{},h('h1',{},courseObj().name),h('div',{class:'sub'},CARDS.length+' כרטיסים · חזרה מרווחת')),h('div',{class:'sync',id:'sync'})));
+  const y=window.scrollY;app.innerHTML='';paintCourse();app.classList.toggle('studying',view==='study');app.classList.toggle('navd',view!=='study');
+  document.querySelectorAll('.bnav').forEach(e=>e.remove());
   if(view!=='study'){
-    app.append(h('div',{class:'chips',role:'group','aria-label':'קורס',style:'margin-bottom:10px'},...COURSES.map(c=>h('button',{class:'chip','aria-pressed':String(COURSE===c.id),on:{click:()=>switchCourse(c.id)}},c.short))));
-    const tabs=[['home','לימוד'],['quiz','תרגול'],['browse','כל הכרטיסים'],['more','הגדרות']];
-    app.append(h('nav',{class:'nav'},...tabs.map(([k,v])=>h('button',{'aria-current':view===k?'page':false,on:{click:()=>{view=k;if(k==='quiz'){quiz=null;exam=null;recall=null}render();window.scrollTo(0,0)}}},v))));
+    app.append(h('div',{class:'top'},h('div',{},h('h1',{},courseObj().name),h('div',{class:'sub'},CARDS.length+' כרטיסים · חזרות')),h('div',{class:'sync',id:'sync'})));
+    app.append(h('div',{class:'cchips',role:'group','aria-label':'קורס'},...COURSES.map(c=>h('button',{class:'cchip','aria-pressed':String(COURSE===c.id),on:{click:()=>switchCourse(c.id)}},h('i',{style:'background:'+(COURSE_COLOR[c.id]||'#888')}),c.short))));
+    document.body.append(bottomNav());
   }
-  ({home:renderHome,study:renderStudy,quiz:renderQuiz,browse:renderBrowse,more:renderMore,map:renderMap}[view])();
-  updateSync();if(view==='browse'||view==='home')window.scrollTo(0,y);
+  ({home:renderHome,study:renderStudy,quiz:renderQuiz,stats:renderProgress,browse:renderBrowse,more:renderMore,map:renderMap}[view])();
+  updateSync();if(view==='browse'||view==='home'||view==='stats')window.scrollTo(0,y);
 }
 function switchCourse(id){
   if(id===COURSE)return;
   lsSave(LS_P,P);lsSave(LS_D,D);flushPending();
   COURSE=id;try{localStorage.setItem(LS_COURSE,id)}catch(e){}
   applyCourse();P=blankProgress();D=blankDeck();
-  lecFilter='all';session=null;quiz=null;exam=null;recall=null;editing=null;browseQ='';undoStack=[];if(view==='study'||view==='map')view='home';
+  lecFilter='all';session=null;quiz=null;exam=null;recall=null;pq=null;flagOpen=null;editing=null;browseQ='';undoStack=[];if(view==='study'||view==='map')view='home';
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);
   rebuild();render();window.scrollTo(0,0);pull().then(()=>{if(view==='home')render()});
 }
-function lecChips(){return h('div',{class:'chips'},[['all','כל ההרצאות'],...LECS.map(([k])=>[k,lecShort(k)])].map(([k,v])=>h('button',{class:'chip','aria-pressed':String(lecFilter===k),on:{click:()=>{lecFilter=k;if(view==='quiz'){quiz=null;exam=null;recall=null}render()}}},v)))}
+function lecChips(){return h('div',{class:'chips'},[['all','כל ההרצאות'],...LECS.map(([k])=>[k,lecShort(k)])].map(([k,v])=>h('button',{class:'chip','aria-pressed':String(lecFilter===k),on:{click:()=>{lecFilter=k;if(view==='quiz'){quiz=null;exam=null;recall=null;pq=null}render()}}},v)))}
 
 function todayPanel(){
   if(COURSES.length<2)return null;
@@ -806,15 +994,20 @@ function todayPanel(){
 }
 function renderHome(){
   const c=counts();const total=c.newAvail+c.learn+c.review;
-  const hero=h('section',{class:'panel stack'},
+  let hero=null;
+  if(COURSES.length<2)hero=h('section',{class:'panel stack'},
     h('div',{class:'counts'},
       h('div',{class:'count c-new'},h('b',{},c.newAvail),h('span',{},'חדשים להיום')),
       h('div',{class:'count c-learn'},h('b',{},c.learn),h('span',{},'בלמידה')),
       h('div',{class:'count c-rev'},h('b',{},c.review),h('span',{},'לחזרה היום'))),
-    lecChips(),
-    h('div',{class:'row startrow'},
-      h('button',{class:total&&COURSES.length<2?'primary':'',disabled:!total,on:{click:()=>startSession(false)}},total?'ללמוד רק את '+courseObj().short:'סיימת את הקורס הזה להיום'),
-      !total&&c.newTotal?h('span',{class:'sub'},'הגעת למכסת הכרטיסים החדשים להיום.'):null));
+    lecChips(),h('div',{class:'row startrow'},h('button',{class:'primary',disabled:!total,on:{click:()=>startSession(false)}},total?'התחל':'סיימת להיום')));
+  else if(LECS.length>1)hero=h('section',{class:'panel'},h('details',{open:lecFilter!=='all'},h('summary',{},'לימוד ממוקד בהרצאה אחת'),
+    h('div',{class:'stack',style:'gap:10px'},lecChips(),
+      h('div',{class:'row'},h('button',{disabled:!total,on:{click:()=>startSession(false)}},total?(lecFilter==='all'?'ללמוד את '+courseObj().short:'ללמוד רק את '+lecShort(lecFilter))+' ('+total+')':'אין כאן מה ללמוד היום'),
+        !total&&c.newTotal?h('span',{class:'sub'},'הגעת למכסת הכרטיסים החדשים להיום.'):null))));
+  const md=mcqDue().length;
+  const mq=md?h('section',{class:'panel stack'},h('h2',{},'שאלות שטעית בהן'),h('p',{class:'sub'},md+' שאלות אמריקאיות שטעית בהן בעבר מחכות לניסיון נוסף. שאלה שתענה עליה נכון תחזור בעוד כמה ימים, ואחר כך בעוד שבוע ויותר.'),
+    h('div',{},h('button',{class:'primary',on:{click:startMcqReview}},'לענות עליהן ('+md+')'))):null;
   // exam
   const dl=daysToExam();
   const dateIn=h('input',{type:'date',id:'examDate',value:P.settings.examDate,on:{change:e=>{P.settings.examDate=e.target.value;persist('progress');render()}}});
@@ -826,9 +1019,13 @@ function renderHome(){
       h('div',{class:'exam'},h('span',{class:'days'},dl===0?'היום':dl),h('span',{},dl===0?'המבחן היום. בהצלחה!':dl===1?'יום אחד למבחן':'ימים למבחן')),
       h('p',{},nr?`נשארו ${nr} כרטיסים שעוד לא למדת. כדי לסיים אותם יומיים לפני המבחן צריך כ-${need} חדשים ביום.`:'למדת את כל הכרטיסים. מעכשיו רק חזרות.'),
       h('label',{class:'row',for:'autoPace'},h('input',{type:'checkbox',id:'autoPace',checked:P.settings.autoPace,on:{change:e=>{P.settings.autoPace=e.target.checked;persist('progress');render()}}}),'להתאים את מספר הכרטיסים החדשים ביום לתאריך המבחן'),
-      h('p',{class:'sub'},'כל כרטיס מתוזמן לחזור לפני המבחן גם אם המרווח שלו ארוך יותר.'),
+      h('p',{class:'sub'},'כל כרטיס מתוזמן לחזור לפני המבחן גם אם המרווח שלו ארוך יותר.'),dl<=14?h('p',{class:'boost'},'מצב לפני מבחן: יעד הזכירה עלה ל-95%, כך שהכרטיסים חוזרים בתדירות גבוהה יותר.'):h('p',{class:'sub'},'בשבועיים האחרונים יעד הזכירה יעלה אוטומטית ל-95%.'),
       h('div',{class:'row'},h('button',{on:{click:()=>startCram('all')}},'חזרה כללית על כל מה שלמדתי'),h('label',{class:'row sub',for:'examDate'},'תאריך',dateIn)));}
   const exam=h('section',{class:'panel'},h('h2',{},'מבחן'),examBody);
+  app.append(h('div',{class:'stack'},...homeBanners(),todayPanel(),mq,hero,exam));
+}
+function renderProgress(){
+  const dl=daysToExam();
   const ret=retention(),stk=streak();
   const stats=h('section',{class:'panel'},h('h2',{},'התקדמות'),
     h('div',{class:'stats'},
@@ -841,7 +1038,7 @@ function renderHome(){
         h('p',{class:'sub',style:'margin:0'},cb.sure[0]>=10&&cb.sure[1]/cb.sure[0]<0.85?'אתה נוטה להעריך יתר. כרטיסים שהיית בטוח בהם וטעית מסומנים ב"כרטיסים קשים".':'ככל שהאחוזים מתרחקים זה מזה, אתה מכיר טוב יותר את מה שאתה יודע.'))})());
   const lecs=h('section',{class:'panel'},h('h2',{},'לפי הרצאה'),
     ...LECS.map(([L])=>{const s=lecStats(L);if(!s.tot)return null;const pct=x=>(100*x/s.tot)+'%';
-      return h('div',{class:'lec'},h('div',{class:'lechead'},h('span',{},lecName(L),lecMap(L)?h('button',{class:'mapbtn',style:'margin-inline-start:8px',on:{click:()=>{mapL=L;view='map';render();window.scrollTo(0,0)}}},'מפה'):null),h('span',{},(s.m+s.y)+'/'+s.tot+' נלמדו')),
+      return h('div',{class:'lec'},h('div',{class:'lechead'},h('span',{},lecName(L),lecMap(L)?h('button',{class:'mapbtn',style:'margin-inline-start:8px',on:{click:()=>{mapL=L;mapFrom='stats';view='map';render();window.scrollTo(0,0)}}},'מפה'):null),h('span',{},(s.m+s.y)+'/'+s.tot+' נלמדו')),
         h('div',{class:'bar',role:'img','aria-label':`${s.m} בשלים, ${s.y} צעירים, ${s.l} בלמידה, ${s.n} חדשים`},
           h('i',{style:`width:${pct(s.m)};background:var(--mature)`}),h('i',{style:`width:${pct(s.y)};background:var(--young)`}),h('i',{style:`width:${pct(s.l)};background:var(--learn)`})))}),
     h('div',{class:'legend'},h('span',{},h('i',{style:'background:var(--mature)'}),'בשל (21 יום ומעלה)'),h('span',{},h('i',{style:'background:var(--young)'}),'צעיר'),h('span',{},h('i',{style:'background:var(--learn)'}),'בלמידה'),h('span',{},h('i',{style:'background:var(--soft)'}),'חדש')));
@@ -855,6 +1052,9 @@ function renderHome(){
       h('ul',{class:'weak'},...weak.slice(0,8).map(c=>{const q=cardQA(c);return h('li',{},h('span',{},c.k==='cz'?q.answer+' · '+plain(q.n.x).slice(0,60)+'…':(c.k==='rev'?q.answer:q.n.f)),h('span',{class:'lapses'},(st(c.id).ill?'בטוח וטעית '+st(c.id).ill+'× · ':'')+'נשכח '+(st(c.id).lapses||0)+'×'))})),
       h('div',{class:'row'},h('button',{on:{click:()=>startCram('weak')}},'תרגול ממוקד ב-'+weak.length+' הקשים'),h('span',{class:'sub'},'לא משנה את לוח החזרות')))
     :h('p',{class:'sub'},'כרטיס שתשכח פעמיים, או שהיית בטוח בו וטעית, יופיע כאן ותוכל לתרגל אותו בנפרד.'));
+  app.append(h('div',{class:'stack'},stats,lecs,fcs,weakP));
+}
+function studySettings(){
   const reset=h('button',{class:'danger',on:{click:()=>{if(!reset.classList.contains('arm')){reset.classList.add('arm');reset.textContent='בטוח? כל ההתקדמות תימחק';setTimeout(()=>{reset.classList.remove('arm');reset.textContent='אפס התקדמות'},3500);return}
     const s=P.settings;P=blankProgress();P.settings=s;persist('progress');render();toast('ההתקדמות אופסה')}}},'אפס התקדמות');
   const S=P.settings;
@@ -868,9 +1068,8 @@ function renderHome(){
       h('p',{class:'sub'},'נסה להיזכר לפני החשיפה, ואמור לעצמך עד כמה אתה בטוח. אחר כך דרג ביושר: "שוב" פירושו שלא נזכרת, "קשה" שנזכרת במאמץ, "טוב" שנזכרת, ו"קל" שזה היה מיידי. כמה דקות כל יום עדיפות על לימוד מרוכז לפני המבחן.'),
       h('p',{class:'sub'},'בלשונית "תרגול": שליפה חופשית אחרי כל הרצאה (כתוב כל מה שאתה זוכר ובדוק מה חסר), ומבחן מסכם בשבועות שלפני המבחן. כרטיס שחוזר ונשכח יבקש ממך רמז במילים שלך.'),
       h('div',{},reset))));
-  app.append(h('div',{class:'stack'},...homeBanners(),todayPanel(),hero,exam,stats,lecs,fcs,weakP,set));
+  return set;
 }
-
 function renderStudy(){
   const s=session;
   const bar=h('div',{class:'studybar'},
@@ -880,6 +1079,7 @@ function renderStudy(){
       :h('div',{class:'sub'},'תרגול חופשי · נותרו '+s.queue.length),
     undoStack.length&&s.mode==='srs'?h('button',{on:{click:undo}},'בטל אחרון'):null);
   if(s.pendingMap){app.append(h('div',{class:'study'},bar,mapPanel(s.pendingMap,true)));return}
+  if(s.drill){app.append(h('div',{class:'study'},bar,drillView()));return}
   app.append(h('div',{class:'study'},bar,s.cur&&BYID[s.cur]?cardView(BYID[s.cur]):doneView()));
 }
 function doneView(){
@@ -888,13 +1088,29 @@ function doneView(){
     clearTimeout(s.waitTimer);s.waitTimer=setTimeout(()=>{if(view==='study'&&session===s&&!s.cur)nextCard()},Math.min(60e3,s.waitUntil-Date.now()+500));
     return h('div',{class:'done'},h('div',{class:'big'},'הפסקה קצרה'),h('div',{class:'sub'},'הכרטיס הבא בלמידה יחזור בעוד '+mins+' דק׳. אפשר להישאר כאן, הוא יופיע לבד.'),h('button',{on:{click:()=>{view='home';render()}}},'למסך הבית'))}
   const nx=s.mode==='srs'?nextCourseWithWork():null;
-  if(nx&&s.chain)return h('div',{class:'done'},h('div',{class:'big'},'סיימת את '+courseObj().short),
-    h('div',{class:'sub'},s.done+' תשובות. נשארו עוד '+nx.k.total+' כרטיסים ב'+nx.c.short+'.'),
+  const sum=sessionSummary(s);
+  const md=mcqDue().length;
+  const mcqBtn=md&&s.mode==='srs'?h('button',{on:{click:startMcqReview}},md+' שאלות אמריקאיות שטעית בהן מחכות'):null;
+  if(nx&&s.chain)return h('div',{class:'done'},h('div',{class:'big'},'סיימת את '+courseObj().short),sum,
+    h('div',{class:'sub'},'נשארו עוד '+nx.k.total+' כרטיסים ב'+nx.c.short+'.'),
     h('button',{class:'primary',on:{click:()=>{switchCourse(nx.c.id);startSession(true)}}},'ממשיכים ל'+nx.c.short),
     h('button',{on:{click:()=>{view='home';render()}}},'מספיק להיום'));
-  return h('div',{class:'done'},h('div',{class:'big'},s.mode==='cram'?'סיימת את התרגול':'סיימת להיום'),
-    h('div',{class:'sub'},s.done+' תשובות במפגש הזה'+(s.done?', '+Math.round(100*(s.done-s.again)/s.done)+'% בלי "שוב"':'')),
+  return h('div',{class:'done'},h('div',{class:'big'},s.mode==='cram'?'סיימת את התרגול':'סיימת להיום'),sum,mcqBtn,
     h('button',{class:'primary',on:{click:()=>{view='home';render()}}},'למסך הבית'));
+}
+function sessionSummary(s){
+  if(!s.done)return null;
+  const acc=Math.round(100*(s.done-s.again)/s.done);const mins=Math.max(1,Math.round((Date.now()-(s.t0||Date.now()))/MIN));
+  const tm=forecast()[1];
+  const box=h('div',{class:'summary'},
+    h('div',{class:'stat'},h('b',{},s.done),h('span',{},'תשובות · '+mins+' דק׳')),
+    h('div',{class:'stat'},h('b',{},acc+'%'),h('span',{},'נזכרת בלי "שוב"')),
+    s.mode==='srs'?h('div',{class:'stat'},h('b',{},s.nNew||0),h('span',{},'כרטיסים חדשים')):null,
+    s.mode==='srs'?h('div',{class:'stat'},h('b',{},tm),h('span',{},'לחזרה מחר')):null);
+  const msgs=[];
+  if(s.ill)msgs.push((s.ill===1?'פעם אחת':s.ill+' פעמים')+' היית בטוח וטעית. זה בדיוק המקום שבו הלמידה הכי משתלמת: הכרטיסים האלה יחזרו מהר יותר.');
+  if(s.done>=10&&acc<70)msgs.push('אחוז ה"שוב" גבוה היום. זה בסדר בתחילת הרצאה חדשה; אם זה נמשך, כדאי להוריד את מספר הכרטיסים החדשים ביום.');
+  return h('div',{class:'stack',style:'align-items:center;gap:10px;width:100%'},box,...msgs.map(m=>h('p',{class:'msg'},m)));
 }
 function cardView(c){
   const s=st(c.id),q=cardQA(c);
@@ -902,8 +1118,9 @@ function cardView(c){
     return h('div',{class:'stack'},editorEl(q.n,res=>{editing=null;if(res==='deleted'){toast('הכרטיס נמחק');if(session.mode==='cram')session.queue.shift();nextCard()}else{if(res==='saved')toast('השינויים נשמרו');render()}}));
   }
   const meta=h('div',{class:'meta'},h('span',{},lecName(c.t)),h('span',{},session.mode==='cram'?'תרגול':!s?'חדש':s.q==='review'?'חזרה':'בלמידה'),c.k==='rev'?h('span',{},'הפוך'):null,h('span',{class:'sp'}),
+    (D.flags||{})[c.nid]?h('button',{class:'flagged',title:'בטל סימון',on:{click:()=>unflag(c.nid)}},'⚑ סומן'):h('button',{on:{click:()=>{flagOpen=c.nid;render()}}},'יש פה טעות'),
     h('button',{on:{click:()=>{editing=c.nid;render()}}},'ערוך'));
-  const card=h('article',{class:'card'},meta,h('div',{class:'ask'},q.ask),h('div',{class:'q',html:revealed?q.back:q.front}));
+  const card=h('article',{class:'card'},meta,flagOpen===c.nid?flagBox(c.nid):null,h('div',{class:'ask'},q.ask),h('div',{class:'q',html:revealed?q.back:q.front}));
   let inp=null;
   if(P.settings.typeAnswer&&!revealed){inp=h('input',{type:'text',id:'typed',dir:'auto',placeholder:'כתוב את התשובה…',autocomplete:'off',value:typed,on:{input:e=>typed=e.target.value,keydown:e=>{if(e.key==='Enter'){e.preventDefault();reveal()}}}});card.append(h('div',{class:'typed'},inp))}
   if(revealed){
@@ -921,7 +1138,7 @@ function cardView(c){
         h('div',{class:'row'},mi,h('button',{on:{click:()=>{const v=mi.value.trim();if(!v)return;saveNote(q.n.id,{my:v});toast('הרמז נשמר');render()}}},'שמור רמז'))));
     }
     if(q.n.img&&(IMG[q.n.img]||q.n.img.includes('/'))){const src=q.n.img.includes('/')?q.n.img:'img/'+q.n.img+'.webp';const cap=q.n.cap||IMG[q.n.img]||'';
-      ans.append(h('figure',{},h('img',{src,alt:cap||'איור מהשקפים',loading:'lazy'}),cap?h('figcaption',{},cap):null))}
+      ans.append(h('figure',{},h('img',{src,alt:cap||'איור מהשקפים',loading:'lazy',on:{click:()=>zoomImg(src,cap)}}),cap?h('figcaption',{},cap+' · הקש להגדלה'):h('figcaption',{},'הקש להגדלה')))}
     card.append(ans);
   }
   const wrap=h('div',{class:'stack'},card);
@@ -950,8 +1167,9 @@ function addSwipe(el){
 function reveal(cf){if(!session||!session.cur||revealed)return;revealed=true;conf=cf||null;const c=BYID[session.cur];if(P.settings.typeAnswer&&typed.trim())localCheck(c);render()}
 
 function renderQuiz(){
-  const modes=[['mcq','בוחן אמריקאי'],['recall','שליפה חופשית'],['exam','מבחן מסכם']];
-  app.append(h('div',{class:'chips',role:'group','aria-label':'סוג תרגול',style:'margin-bottom:12px'},...modes.map(([k,v])=>h('button',{class:'chip','aria-pressed':String(pmode===k),on:{click:()=>{pmode=k;quiz=null;exam=null;recall=null;render()}}},v))));
+  const modes=[['mcq','בוחן אמריקאי'],['pairs','הבחנה בין מושגים'],['recall','שליפה חופשית'],['exam','מבחן מסכם']];
+  app.append(h('div',{class:'chips',role:'group','aria-label':'סוג תרגול',style:'margin-bottom:12px'},...modes.map(([k,v])=>h('button',{class:'chip','aria-pressed':String(pmode===k),on:{click:()=>{pmode=k;quiz=null;exam=null;recall=null;pq=null;render()}}},v))));
+  if(pmode==='pairs')return renderPairs();
   if(pmode==='recall')return renderRecall();
   if(pmode==='exam')return renderExam();
   renderMCQ();
@@ -1009,7 +1227,7 @@ function renderExam(){
   const z=exam;
   if(z.i>=z.qs.length){
     const right=z.qs.filter(x=>x.picked===x.answer).length;
-    if(!z.saved){z.saved=true;P.exams=(P.exams||[]).concat([{d:today(),s:right,n:z.qs.length}]).slice(-30);persist('progress')}
+    if(!z.saved){z.saved=true;for(const q of z.qs)if(q.kind==='mc')mcqResult(q.n.id,q.picked===q.answer);P.exams=(P.exams||[]).concat([{d:today(),s:right,n:z.qs.length}]).slice(-30);persist('progress')}
     const byL={};for(const x of z.qs){const k=x.n.t;byL[k]=byL[k]||[0,0];byL[k][1]++;if(x.picked===x.answer)byL[k][0]++}
     const wrong=z.qs.filter(x=>x.picked!==x.answer);
     const ids=wrong.flatMap(x=>CARDS.filter(c=>c.nid===x.n.id).map(c=>c.id));
@@ -1036,17 +1254,20 @@ function renderMCQ(){
   if(!z.qs.length){app.append(h('section',{class:'panel stack'},lecChips(),h('p',{},'אין מספיק כרטיסים להרצאה הזו.')));return}
   if(z.i>=z.qs.length){
     const wrong=z.qs.filter(x=>x.picked!==x.answer);
+    const stillDue=mcqDue().length;
     app.append(h('section',{class:'panel stack'},h('h2',{},`ציון: ${z.score} מתוך ${z.qs.length}`),
+      h('p',{class:'sub'},'שאלות אמריקאיות שטעית בהן יחזרו אליך מחר, ואחר כך במרווחים הולכים וגדלים עד שתענה עליהן נכון כמה פעמים.'+(stillDue?' עוד '+stillDue+' מחכות היום.':'')),
       wrong.length?h('div',{class:'stack',style:'gap:8px'},h('p',{class:'sub'},'כדאי לחזור על:'),...wrong.map(x=>h('div',{class:'item'},h('div',{class:'txt',html:x.kind==='def'?esc(x.prompt):x.promptHtml}),h('div',{},h('b',{},x.answer),x.picked?h('span',{class:'sub'},' · בחרת: '+x.picked):null)))):h('p',{},'מושלם!'),
       h('div',{class:'row'},h('button',{class:'primary',on:{click:()=>{quiz=null;render()}}},'בוחן חדש'),lecChips())));return}
   const x=z.qs[z.i];
-  const opts=h('div',{class:'opts'},...x.opts.map(o=>{const b=h('button',{class:x.picked?(o===x.answer?'right':o===x.picked?'wrong':''):'',disabled:!!x.picked,on:{click:()=>{x.picked=o;if(o===x.answer)z.score++;render()}}},o);return b}));
+  const opts=h('div',{class:'opts'},...x.opts.map(o=>{const b=h('button',{class:x.picked?(o===x.answer?'right':o===x.picked?'wrong':''):'',disabled:!!x.picked,on:{click:()=>{x.picked=o;if(o===x.answer)z.score++;if(x.kind==='mc')mcqResult(x.n.id,o===x.answer);render()}}},o);return b}));
   app.append(h('div',{class:'stack'},
     h('div',{class:'row'},lecChips()),
     h('div',{class:'progress',role:'progressbar','aria-valuenow':z.i,'aria-valuemax':z.qs.length},h('i',{style:`width:${100*z.i/z.qs.length}%`})),
     h('article',{class:'card'},h('div',{class:'meta'},h('span',{},`שאלה ${z.i+1} מתוך ${z.qs.length}`),h('span',{},lecName(x.n.t))),h('div',{class:'ask'},x.ask),
       h('div',{class:'q',html:x.kind==='def'?esc(x.prompt):x.promptHtml}),opts,
-      x.picked&&x.n.e?h('div',{class:'note'},h('b',{},'הסבר'),x.n.e):null),
+      x.picked&&x.n.e?h('div',{class:'note'},h('b',{},'הסבר'),x.n.e):null,
+      x.picked?(flagOpen===x.n.id?flagBox(x.n.id,plain(x.promptHtml||x.prompt||'')):(D.flags||{})[x.n.id]?h('button',{class:'flagged',style:'align-self:flex-start;font-size:.8rem;padding:2px 10px',on:{click:()=>unflag(x.n.id)}},'⚑ סומן לבדיקה'):h('button',{style:'align-self:flex-start;font-size:.8rem;padding:2px 10px',on:{click:()=>{flagOpen=x.n.id;render()}}},'יש פה טעות')):null),
     x.picked?h('button',{class:'primary reveal',on:{click:()=>{z.i++;render();window.scrollTo(0,0)}}},z.i+1<z.qs.length?'לשאלה הבאה':'לתוצאות'):h('p',{class:'sub'},'הבוחן לא משנה את לוח החזרות.')));
 }
 
@@ -1072,7 +1293,7 @@ function renderBrowse(){
 }
 
 document.addEventListener('keydown',e=>{
-  if(view!=='study'||!session||!session.cur||editing)return;
+  if(view!=='study'||!session||!session.cur||editing||session.drill||session.pendingMap||document.querySelector('.zoom'))return;
   const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
   if(!revealed&&['1','2','3'].includes(e.key)){e.preventDefault();reveal(['sure','unsure','none'][+e.key-1]);return}
   if(!revealed&&(e.key===' '||e.key==='Enter')){e.preventDefault();reveal();return}
@@ -1082,7 +1303,7 @@ document.addEventListener('keydown',e=>{
 });
 window.addEventListener('pagehide',()=>{lsSave(LS_P,P);lsSave(LS_D,D);flushPending()});
 
-applyCourse();rebuild();render();initStore();
+applyCourse();paintCourse();rebuild();render();initStore();
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 })();
 </script>
