@@ -358,10 +358,12 @@ const IMG={finches:"ארבעה מיני חוחיות מגלפאגוס: צורת 
 const MIN=60e3, HOUR=3600e3, DAY=86400e3, ROLL=4;
 const LEARN_STEPS=[1,10];
 // FSRS-4.5 default parameters
-const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
-const DECAY=-0.5, FACTOR=19/81;
+// FSRS-6 default parameters (21); personal optimisation can replace them later from P.rl
+const W=[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.796,1.4835,0.0614,0.2629,1.6483,0.6014,1.8729,0.5425,0.0912,0.0658,0.1542];
+const DECAY=-W[20], FACTOR=Math.pow(0.9,1/DECAY)-1;
+const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorrow
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.10', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.11', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -764,10 +766,13 @@ const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 function retr(t,S){return Math.pow(1+FACTOR*t/S,DECAY)}
 function effRet(){const r=P.settings.retention||0.9;const dl=daysToExam();return dl!=null&&dl>=0&&dl<=14?Math.max(r,0.95):r}
 function ivlFor(S){const r=effRet();return Math.max(1,Math.round(S/FACTOR*(Math.pow(r,1/DECAY)-1)))}
-function d0(g){return clamp(W[4]-W[5]*(g-3),1,10)}
-function nextD(Dv,g){const d=Dv-W[6]*(g-3);return clamp(W[7]*d0(4)+(1-W[7])*d,1,10)}
+function d0raw(g){return W[4]-Math.exp(W[5]*(g-1))+1}
+function d0(g){return clamp(d0raw(g),1,10)}
+function nextD(Dv,g){const dd=-W[6]*(g-3);const d=Dv+dd*(10-Dv)/9;return clamp(W[7]*d0raw(4)+(1-W[7])*d,1,10)}
+// same-day review (FSRS-5/6): stability changes by a short-term factor
+function sShort(S,g){let k=Math.exp(W[17]*(g-3+W[18]))*Math.pow(S,-W[19]);if(g>=3)k=Math.max(k,1);return S*k}
 function sRecall(Dv,S,R,g){const hp=g===2?W[15]:1, eb=g===4?W[16]:1;return S*(Math.exp(W[8])*(11-Dv)*Math.pow(S,-W[9])*(Math.exp(W[10]*(1-R))-1)*hp*eb+1)}
-function sForget(Dv,S,R){return Math.min(S,W[11]*Math.pow(Dv,-W[12])*(Math.pow(S+1,W[13])-1)*Math.exp(W[14]*(1-R)))}
+function sForget(Dv,S,R){const lt=W[11]*Math.pow(Dv,-W[12])*(Math.pow(S+1,W[13])-1)*Math.exp(W[14]*(1-R));return Math.min(lt,S/Math.exp(W[17]*W[18]))}
 function migrate(s,now){ // from the earlier SM-2 version
   if(s.S!=null)return s;
   if(s.q==='review'||s.q==='relearn'){s.S=Math.max(1,s.ivl||1);s.lr=s.q==='review'?(s.due-(s.ivl||1)*DAY):now}
@@ -779,19 +784,25 @@ function toReview(s,now,preview){let iv=ivlFor(s.S);if(!preview)iv=fuzz(iv);iv=c
 function schedule(id,g,now,preview){
   let s=P.cards[id]?migrate(JSON.parse(JSON.stringify(P.cards[id])),now):{q:'new',step:0,reps:0,lapses:0};
   if(!preview)s.reps=(s.reps||0)+1;
-  if(s.q==='new'||s.S==null){s.S=W[g-1];s.D=d0(g);if(s.q==='new'){s.q='learn';s.step=0}}
-  if(s.q==='learn'||s.q==='relearn'){
+  const first=s.q==='new'||s.S==null;
+  const t=Math.max(0,(now-(s.lr||now))/DAY);
+  if(first){s.S=W[g-1];s.D=d0(g);if(s.q==='new'){s.q='learn';s.step=0}}
+  else{const Dold=s.D;const R=retr(t,s.S);
+    if(t<1)s.S=sShort(s.S,g);else s.S=g===1?sForget(Dold,s.S,R):sRecall(Dold,s.S,R,g);
+    s.D=nextD(Dold,g)}
+  const wasReview=s.q==='review';
+  if(g===1){
+    if(wasReview){if(!preview)s.lapses=(s.lapses||0)+1;s.q='relearn'}
+    s.step=0;s.due=now+(s.q==='relearn'?LEARN_STEPS[1]:LEARN_STEPS[0])*MIN;
+    // the same card failed too often today: more repetitions now only test short-term memory, so it waits for tomorrow
+    const dk=dayKey(now);const n=(s.ag&&s.ag[0]===dk?s.ag[1]:0)+1;s.ag=[dk,n];
+    if(n>=AGAIN_CAP)s.due=nextBoundary(now);
+  }else if(s.q==='learn'||s.q==='relearn'){
     const re=s.q==='relearn';
-    if(g===1){s.step=0;s.due=now+(re?LEARN_STEPS[1]:LEARN_STEPS[0])*MIN}
-    else if(g===2){s.due=now+(re?LEARN_STEPS[1]:(s.step===0?(LEARN_STEPS[0]+LEARN_STEPS[1])/2:LEARN_STEPS[1]))*MIN}
+    if(g===2)s.due=now+(re?LEARN_STEPS[1]:(s.step===0?(LEARN_STEPS[0]+LEARN_STEPS[1])/2:LEARN_STEPS[1]))*MIN;
     else if(g===3&&!re&&s.step+1<LEARN_STEPS.length){s.step++;s.due=now+LEARN_STEPS[s.step]*MIN}
-    else{if(g===4)s.S=Math.max(s.S,W[3]*(re?0.5:1));toReview(s,now,preview)}
-  }else{
-    const t=Math.max(0,(now-(s.lr||now))/DAY);const R=retr(t,s.S);const Dold=s.D;
-    s.D=nextD(Dold,g);
-    if(g===1){s.S=sForget(Dold,s.S,R);if(!preview)s.lapses=(s.lapses||0)+1;s.q='relearn';s.step=0;s.due=now+LEARN_STEPS[1]*MIN}
-    else{s.S=sRecall(Dold,s.S,R,g);toReview(s,now,preview)}
-  }
+    else toReview(s,now,preview);
+  }else toReview(s,now,preview);
   s.lr=now;return s;
 }
 function fmtIvl(ms){
@@ -802,7 +813,7 @@ function fmtIvl(ms){
   if(d<365)return (d/30).toFixed(1).replace('.0','')+' חוד׳';
   return (d/365).toFixed(1).replace('.0','')+' שנים';
 }
-function previewLabel(id,g){const now=Date.now();const s=schedule(id,g,now,true);return s.q==='review'?fmtIvl(s.ivl*DAY):fmtIvl(s.due-now)}
+function previewLabel(id,g){const now=Date.now();const s=schedule(id,g,now,true);return s.q==='review'?fmtIvl(s.ivl*DAY):s.due>=nextBoundary(now)?'מחר':fmtIvl(s.due-now)}
 function st(id){return P.cards[id]||null}
 function isNew(id){return !P.cards[id]}
 
@@ -897,6 +908,7 @@ function answer(g){
   lg.t++;if(wasNew)lg.n++;if(wasReview){lg.r++;if(g>1)lg.ok++}
   if(wasNew)session.newQueue=session.newQueue.filter(x=>x!==id);
   undoStack.push({id,prev,prevLog,day:today(),wasNew});if(undoStack.length>20)undoStack.shift();
+  if(g===1&&P.cards[id].q!=='review'&&P.cards[id].due>=nextBoundary(now))toast('שלוש פעמים "שוב" היום. הכרטיס יחזור מחר, אחרי שינה');
   session.done++;if(g===1)session.again++;if(wasNew)session.nNew++;if(conf==='sure'&&g===1)session.ill++;
   if(g===1)maybeDrill(id);
   persist('progress');nextCard();
