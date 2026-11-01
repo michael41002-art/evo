@@ -361,7 +361,7 @@ const LEARN_STEPS=[1,10];
 const W=[0.4872,1.4003,3.7145,13.8206,5.1618,1.2298,0.8975,0.031,1.6474,0.1367,1.0461,2.1072,0.0793,0.3246,1.587,0.2272,2.8755];
 const DECAY=-0.5, FACTOR=19/81;
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.9', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.10', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -489,11 +489,19 @@ function conceptKnown(k,placed){return (CDEF[k]||[]).some(nid=>noteSeen(nid)||(p
 function needs(nid,placed){return (NUSE[nid]||[]).filter(k=>(CDEF[k]||[]).length&&!conceptKnown(k,placed))}
 // keep the lecture's own order, but hold back a card until the cards that teach its concepts came first
 function prereqOrder(list){
-  const placed=new Set(),out=[],pend=[];
-  const put=id=>{out.push(id);placed.add(BYID[id].nid)};
+  const placed=new Set(),done=new Set(),out=[],pend=[];const inList=new Set(list);
+  const put=id=>{if(done.has(id))return;done.add(id);out.push(id);placed.add(BYID[id].nid)};
   const drain=()=>{for(let i=0;i<pend.length;i++)if(!needs(BYID[pend[i]].nid,placed).length){put(pend.splice(i,1)[0]);i=-1}};
-  for(const id of list){if(needs(BYID[id].nid,placed).length)pend.push(id);else{put(id);drain()}}
-  return out.concat(pend);
+  // a concept taught in a later lecture is brought forward to just before the first card that needs it
+  const place=(id,stack)=>{
+    if(done.has(id))return;
+    for(const k of needs(BYID[id].nid,placed)){
+      const def=list.find(x=>!done.has(x)&&!stack.has(x)&&(CDEF[k]||[]).includes(BYID[x].nid)&&BYID[x].k!=='rev');
+      if(def){stack.add(id);place(def,stack);stack.delete(id)}}
+    if(needs(BYID[id].nid,placed).length){if(!pend.includes(id))pend.push(id)}else{const i=pend.indexOf(id);if(i>=0)pend.splice(i,1);put(id);drain()}
+  };
+  for(const id of list)if(inList.has(id))place(id,new Set());
+  return out.concat(pend.filter(x=>!done.has(x)));
 }
 function textReady(txt){for(const c of CONC){const d=CDEF[c.n];if(!d||!d.length)continue;if(c.kw.some(w=>txt.includes(w))&&!d.some(noteSeen))return false}return true}
 function lecSeen(t){return CARDS.some(c=>c.t===t&&P.cards[c.id])}
@@ -820,8 +828,8 @@ function startSession(chain){
   // keep sibling cards of the same note apart: all first blanks, then all second blanks, and so on
   for(const k in byL){const l=byL[k];const pos=new Map(l.map((id,i)=>[id,i]));const rk=id=>Math.max(0,(BYID[id].n||1)-1);l.sort((a,b)=>(rk(a)-rk(b))||(pos.get(a)-pos.get(b)))}
   // reverse cards wait until the forward card is known
-  const rr=[];const lists=LECS.map(l=>byL[l[0]]||[]);let k=0;const total=lists.reduce((a,b)=>a+b.length,0);
-  while(rr.length<total){for(const a of lists)if(a[k])rr.push(a[k]);k++}
+  // new material lecture by lecture (understand one before mixing); reviews still come from all lectures
+  const rr=LECS.flatMap(l=>byL[l[0]]||[]);
   const ordered=prereqOrder(rr.filter(id=>BYID[id].k!=='rev'||!isNew(BYID[id].nid)));
   session={mode:'srs',cst:conceptStages(),newQueue:ordered.slice(0,c.newAvail),done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),cur:null,chain:!!chain};
   for(const id of session.newQueue){const L=BYID[id].t;if(lecMap(L)&&!P.maps[L]){session.pendingMap=L;break}}
@@ -870,6 +878,9 @@ function nextCard(){
   else{const useNew=session.newQueue.length&&(!rev.length||session.done%4===3);
     if(useNew)pick=session.newQueue[0];else if(rev.length)pick=rev[0];else if(session.newQueue.length)pick=session.newQueue[0];
     else if(ahead&&st(ahead).due-now<=20*MIN)pick=ahead}
+  // entering a new lecture: show its map first (not for a single concept brought forward from a later lecture)
+  if(pick&&isNew(pick)&&!session.pendingMap){const L=BYID[pick].t,li=LECS.findIndex(l=>l[0]===L);
+    if(lecMap(L)&&!P.maps[L]&&!session.newQueue.some(x=>x!==pick&&LECS.findIndex(l=>l[0]===BYID[x].t)<li)){session.pendingMap=L;session.cur=null;resetCardUI();render();window.scrollTo(0,0);return}}
   session.cur=pick;session.waitUntil=(!pick&&ahead)?st(ahead).due:null;render();
 }
 function answer(g){
