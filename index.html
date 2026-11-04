@@ -244,6 +244,7 @@ figure img{cursor:zoom-in}
 .flagbox{display:flex;flex-direction:column;gap:6px;background:var(--bg);border-radius:10px;padding:10px 12px}
 .meta .flagged{color:var(--hard);font-weight:700}
 .boost{font-size:.85rem;color:var(--accent);font-weight:600}
+.note.lesson{font-size:1.05rem;line-height:1.75;background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
 .card.teach{border-color:var(--accent)}
 .meta .newc{color:var(--accent);font-weight:700}
 .card.teach .ask b{color:var(--ink)}
@@ -363,7 +364,7 @@ const W=[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.7
 const DECAY=-W[20], FACTOR=Math.pow(0.9,1/DECAY)-1;
 const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorrow
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.12', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.13', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -528,7 +529,9 @@ function teachView(c){
       :h('div',{class:'ask'},'קודם לומדים: קרא והבן. בעוד דקה תישאל על זה.'),
     c.k==='qa'?h('div',{class:'q',html:esc(q.n.f)}):h('div',{class:'q',html:esc(q.n.x).replace(CZ,'<span class="ans">$2</span>')}),
     c.k==='qa'?h('div',{class:'answer'},h('div',{class:'a'},q.answer)):null,
-    q.extra?h('div',{class:'note'},h('b',{},'הסבר'),q.extra):null);
+    q.n.L?h('div',{class:'note lesson'},h('b',{},'הסבר'),q.n.L):null,
+    q.extra?h('div',{class:'note'},h('b',{},q.n.L?'הנקודה לזכור':'הסבר'),q.extra):null,
+    (()=>{const rel=(NUSE[c.nid]||[]).filter(k=>(CDEF[k]||[]).some(noteSeen));return rel.length?h('div',{class:'sub'},'נשען על מה שכבר למדת: '+rel.join(', ')):null})());
   if(q.n.img&&(IMG[q.n.img]||q.n.img.includes('/'))){const src=q.n.img.includes('/')?q.n.img:'img/'+q.n.img+'.webp';const cap=q.n.cap||IMG[q.n.img]||'';
     card.append(h('figure',{},h('img',{src,alt:cap||'איור מהשקפים',loading:'lazy',on:{click:()=>zoomImg(src,cap)}}),h('figcaption',{},(cap?cap+' · ':'')+'הקש להגדלה')))}
   const dockin=h('div',{class:'dockin'},h('button',{class:'primary reveal',id:'teachBtn',on:{click:teachDone}},'הבנתי, אפשר לשאול אותי'),
@@ -644,10 +647,13 @@ function importText(raw){
       else if((x.type==='qa'||x.k==='qa')&&(x.front||x.f)&&(x.back||x.b)){D.added.push({id,k:'qa',f:x.front||x.f,b:x.back||x.b,e:x.extra||x.e||'',t:key,img:x.img,cap:x.cap});n++}
       else if((x.type==='cloze'||x.k==='cz')&&clozeOk(x.text||x.x||'')){D.added.push({id,k:'cz',x:x.text||x.x,e:x.extra||x.e||'',t:key,img:x.img,cap:x.cap});n++}
     }
+    let nl=0;if(Array.isArray(o.lessons)){for(const ls of o.lessons){if(!ls||!ls.m||!ls.L)continue;
+      for(const n0 of NOTES){const k=n0.k==='qa'?(n0.f||''):(n0.x||'');if(!k.startsWith(ls.m))continue;
+        const b=BASE.find(x=>x.id===n0.id);if(b)D.edits[n0.id]=Object.assign({},D.edits[n0.id]||{},{L:ls.L});else{const a=D.added.find(x=>x.id===n0.id);if(a)a.L=ls.L}nl++}}}
     let nc=0;if(Array.isArray(o.concepts)){D.concepts=D.concepts||[];for(const c of o.concepts){if(!c||!c.n||!Array.isArray(c.kw))continue;const i3=D.concepts.findIndex(x=>x.n===c.n);if(i3>=0)D.concepts[i3]=c;else D.concepts.push(c);nc++}}
     let np=0;if(Array.isArray(o.pairs)){D.pairs=D.pairs||[];for(const pr of o.pairs){if(!pr||!pr.id||!Array.isArray(pr.terms)||!Array.isArray(pr.items))continue;const i2=D.pairs.findIndex(x=>x.id===pr.id);const v=Object.assign({},pr,{t:pr.t||key});if(i2>=0)D.pairs[i2]=v;else D.pairs.push(v);np++}}
     rebuild();persist('deck');lecFilter='all';
-    if((np||nc)&&!n&&!nm)return {ok:true,msg:[np?np+' זוגות מושגים להבחנה נוספו.':'',nc?nc+' מושגים נוספו לסדר הלימוד.':''].join(' ').trim()};
+    if((np||nc||nl)&&!n&&!nm)return {ok:true,msg:[np?np+' זוגות מושגים להבחנה נוספו.':'',nc?nc+' מושגים נוספו לסדר הלימוד.':'',nl?nl+' כרטיסים קיבלו הסבר מורחב.':''].join(' ').trim()};
     return {ok:true,msg:(n||nm)?(n?n+' כרטיסים חדשים נוספו. ':'')+(nm?nm+' שאלות אמריקאיות נוספו לתרגול.':''):'כל הכרטיסים האלה כבר קיימים.'};
   }
   return {ok:false,msg:'זה לא נראה כמו גיבוי או חבילת כרטיסים.'};
@@ -1410,6 +1416,7 @@ function cardView(c){
     // review cards: try to explain it yourself before reading the explanation
     if(q.extra){if(s&&s.q==='review'&&session.mode==='srs')ans.append(h('details',{class:'note'},h('summary',{},'הסבר · קודם נסה להסביר לעצמך למה זה נכון'),q.extra));
       else ans.append(h('div',{class:'note'},h('b',{},'הסבר'),q.extra))}
+    if(q.n.L)ans.append(h('details',{class:'note'},h('summary',{},'ההסבר המלא מהלימוד הראשון'),q.n.L));
     if(s&&((s.lapses||0)>=3||(s.ill||0)>=2)&&!q.n.my){
       const mi=h('input',{type:'text',dir:'auto',placeholder:'קשר, דימוי, ראשי תיבות, דוגמה מהחיים…',style:'flex:1;min-width:0'});
       ans.append(h('div',{class:'note mine stack',style:'gap:6px'},h('b',{},'הכרטיס הזה חוזר ונשכח'),
