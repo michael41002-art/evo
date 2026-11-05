@@ -342,6 +342,23 @@ button.primary{box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 30%,transpa
 /* ==== EX:match ==== */
 /* ==== /EX:match ==== */
 /* ==== EX:tf ==== */
+.tf .tf-count{margin-inline-start:auto;font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink,inherit)}
+.tf .tf-st{overflow-wrap:anywhere}
+.tf .tf-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tf .tf-btns button{min-height:64px;font-size:1.15rem;font-weight:700;border-radius:14px;border-width:2px}
+.tf .tf-btns .tf-yes{border-color:color-mix(in srgb,var(--good) 55%,var(--line));color:var(--good)}
+.tf .tf-btns .tf-no{border-color:color-mix(in srgb,var(--again) 55%,var(--line));color:var(--again)}
+.tf .tf-btns button:disabled{opacity:.45;cursor:default}
+.tf .tf-btns button.right{opacity:1;border-color:var(--good);color:var(--good);background:color-mix(in srgb,var(--good) 14%,var(--surface))}
+.tf .tf-btns button.wrong{opacity:1;border-color:var(--again);color:var(--again);background:color-mix(in srgb,var(--again) 14%,var(--surface))}
+.tf .tf-fix b{display:inline;font-size:inherit;color:inherit;letter-spacing:0;font-weight:700;margin:0}
+.tf .tf-res{font-weight:700}
+.tf .tf-res.ok{color:var(--good)} .tf .tf-res.no{color:var(--again)}
+.tf .tf-score{font-size:1.2rem}.tf .tf-score b{font-size:2.2rem;font-variant-numeric:tabular-nums}
+.tf .tf-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.tf .tf-list li{display:flex;gap:8px;align-items:flex-start;overflow-wrap:anywhere}
+.tf .tf-mark{font-weight:700;flex:none;width:1.2em}
+.tf .tf-list li.ok .tf-mark{color:var(--good)} .tf .tf-list li.no .tf-mark{color:var(--again)}
 /* ==== /EX:tf ==== */
 /* ==== EX:image ==== */
 /* ==== /EX:image ==== */
@@ -1709,6 +1726,61 @@ const fx={reveal(){},grade(g){},exResult(ok){},step(){},conceptGrew(names){},rou
 // ==== /EX:match ====
 
 // ==== EX:tf ==== (exercise: quick true / false statements)
+// Five statements "<term>: <definition>". About half carry the term's own definition, the rest a definition of another
+// learned term (from the same lecture when possible, so it is a real confusion). Answer each with נכון / לא נכון.
+EX.push({kind:'tf',name:'נכון או לא',why:'החלטות מהירות: האם ההגדרה מתאימה למושג?',
+  make(){
+    const terms=learnedTerms().filter(a=>a.term&&a.def);if(terms.length<4)return null;
+    const N=5,nTrue=Math.random()<.5?2:3;const subs=shuffle(terms);const truth=shuffle([...Array(N)].map((_,i)=>i<nTrue));
+    const used=new Set(),st=[];
+    for(let i=0;st.length<N&&i<N*3;i++){
+      const a=subs[i%subs.length];let want=truth[st.length];
+      const key=(d)=>a.term+'\u0001'+d;
+      if(want&&used.has(key(a.def)))want=false;
+      let def=a.def,from=a;
+      if(!want){const others=terms.filter(b=>b!==a&&b.def!==a.def&&b.term!==a.term&&!used.has(key(b.def)));if(!others.length)continue;
+        const same=others.filter(b=>b.t===a.t);from=shuffle(same.length?same:others)[0];def=from.def}
+      if(used.has(key(def)))continue;used.add(key(def));
+      st.push({term:a.term,def,ok:want,real:a.def,ids:a.ids.concat(want?[]:from.ids)})}
+    if(st.length<4)return null;
+    return {st,text:st.map(s=>s.term+': '+s.def+(s.ok?'':' '+s.term+' = '+s.real)).join(' \n ')};
+  },
+  view(item,done){
+    const st=item.st,N=st.length,ans=[],pick=[];let i=0,fin=false;const root=h('div',{class:'tf'});
+    const answer=v=>{if(ans[i]!=null||i>=N)return;pick[i]=v;ans[i]=(v===st[i].ok);draw()};
+    const next=()=>{if(ans[i]==null)return;i++;draw();window.scrollTo(0,0)};
+    const finish=()=>{if(fin)return;fin=true;document.removeEventListener('keydown',key);
+      const right=ans.filter(Boolean).length,ids=[...new Set(st.flatMap((s,k)=>ans[k]?[]:s.ids))];done(right>=Math.min(4,N-1),ids)};
+    function key(e){if(!root.isConnected){document.removeEventListener('keydown',key);return}
+      const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||document.querySelector('.zoom'))return;
+      if(i>=N){if(e.key==='Enter'||e.key===' '){e.preventDefault();finish()}return}
+      if(ans[i]==null){if(e.key==='ArrowRight'||e.key==='1'){e.preventDefault();answer(true)}else if(e.key==='ArrowLeft'||e.key==='2'){e.preventDefault();answer(false)}}
+      else if(e.key==='Enter'||e.key===' '||e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();next()}}
+    document.addEventListener('keydown',key);
+    const dock=(label,fn)=>h('div',{class:'dock'},h('div',{class:'dockin'},h('button',{class:'primary reveal',on:{click:fn}},label)));
+    function draw(){
+      root.replaceChildren();
+      if(i>=N){const right=ans.filter(Boolean).length;
+        root.append(h('article',{class:'card tf-end'},
+          h('div',{class:'meta'},h('span',{},'נכון או לא'),h('span',{},'סיכום')),
+          h('div',{class:'tf-score'},h('b',{},right+'/'+N),' נכון'),
+          h('ul',{class:'tf-list'},...st.map((s,k)=>h('li',{class:ans[k]?'ok':'no'},h('span',{class:'tf-mark'},ans[k]?'✓':'✗'),
+            h('span',{},h('b',{},s.term),' = ',s.real))))),
+          dock('המשך',finish));return}
+      const s=st[i],a=ans[i];
+      const card=h('article',{class:'card'+(a==null?'':a?' sw-good':' sw-again')},
+        h('div',{class:'meta'},h('span',{},'נכון או לא'),h('span',{class:'tf-count'},(i+1)+'/'+N)),
+        h('div',{class:'ask'},'האם ההגדרה מתאימה למושג?'),
+        h('div',{class:'q tf-st'},h('b',{},s.term),': ',s.def),
+        h('div',{class:'tf-btns'},
+          h('button',{class:'tf-yes'+(a!=null&&s.ok?' right':'')+(pick[i]===true&&!s.ok?' wrong':''),disabled:a!=null,on:{click:()=>answer(true)}},'נכון'),
+          h('button',{class:'tf-no'+(a!=null&&!s.ok?' right':'')+(pick[i]===false&&s.ok?' wrong':''),disabled:a!=null,on:{click:()=>answer(false)}},'לא נכון')));
+      if(a!=null){card.append(h('div',{class:'tf-res '+(a?'ok':'no')},a?'נכון!':'לא בדיוק.',' ',s.ok?'ההגדרה הזאת אכן של המושג.':'ההגדרה הזאת לא שייכת למושג.'));
+        if(!s.ok)card.append(h('div',{class:'note tf-fix'},h('b',{},s.term),' = ',s.real))}
+      root.append(card);if(a!=null)root.append(dock(i+1<N?'הבא':'לסיכום',next));
+    }
+    draw();return root;
+  }});
 // ==== /EX:tf ====
 
 // ==== EX:image ==== (exercise: what does this slide figure show?)
