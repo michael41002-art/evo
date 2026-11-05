@@ -142,6 +142,18 @@ figcaption{font-size:.82rem;color:var(--muted);text-align:center}
 .grades button{display:flex;flex-direction:column;align-items:center;padding:10px 4px;font-weight:700;background:var(--surface)}
 .grades button small{font-weight:400;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .grades button.sug{box-shadow:0 0 0 3px var(--soft)}
+.grades button .what{font-weight:400;font-size:.8rem}
+.hintline{font-size:.88rem;color:var(--muted);text-align:center}
+.stepbar{display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px}
+.stepbar .sl{display:flex;justify-content:space-between;gap:8px;font-size:.88rem}
+.stepbar .sl b{color:var(--accent)}
+.stepbar .why{font-size:.82rem;color:var(--muted)}
+.hero .now{font-size:1.08rem;line-height:1.5}
+.hero .go{padding:14px 22px;font-size:1.1rem;width:100%}
+.minirings{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.minirings .mr{display:flex;align-items:center;gap:8px;font-size:.9rem}
+.learned{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.learned span{background:var(--soft);border-radius:999px;padding:3px 10px;font-size:.88rem}
 .g1{border-color:var(--again)!important;color:var(--again)} .g2{border-color:var(--hard)!important;color:var(--hard)}
 .g3{border-color:var(--good)!important;color:var(--good)} .g4{border-color:var(--easy)!important;color:var(--easy)}
 .reveal{position:sticky;bottom:calc(10px + env(safe-area-inset-bottom,0px));padding:14px;font-size:1.05rem}
@@ -363,8 +375,9 @@ const LEARN_STEPS=[1,10];
 const W=[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.796,1.4835,0.0614,0.2629,1.6483,0.6014,1.8729,0.5425,0.0912,0.0658,0.1542];
 const DECAY=-W[20], FACTOR=Math.pow(0.9,1/DECAY)-1;
 const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorrow
+const ROUND_SIZE=15, ROUND_NEW=3, ROUND_REV=6; // a guided round: steps, new concepts, reviews before new material
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.13', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.14', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -508,7 +521,18 @@ function prereqOrder(list){
 }
 function textReady(txt){for(const c of CONC){const d=CDEF[c.n];if(!d||!d.length)continue;if(c.kw.some(w=>txt.includes(w))&&!d.some(noteSeen))return false}return true}
 function lecSeen(t){return CARDS.some(c=>c.t===t&&P.cards[c.id])}
-function teachable(c){return session&&session.mode==='srs'&&c.k!=='rev'&&isNew(c.id)&&(P.settings.teachAll!==false||(NDEF[c.nid]||[]).length>0)}
+// "only what you learned": text may be shown outside its own lesson card only if every concept it mentions was already taught
+function noteTxt(n){return (n.f||'')+' '+(n.b||'')+' '+plain(n.x||'')}
+function mcqReady(m){return lecSeen(m.t)&&textReady(m.f+' '+m.o.join(' '))}
+function pairReady(p){
+  const all=p.terms.map(t=>t[0]+' '+t[1]).join(' ')+' '+p.items.map(i=>i[0]).join(' ')+' '+(p.tip||'');
+  if(!textReady(all))return false;
+  const seen=NOTES.filter(n=>noteSeen(n.id));const hit=w=>seen.some(n=>noteTxt(n).includes(w));
+  const names=p.terms.map(t=>t[0]+' '+t[1]).join(' ');
+  return (p.kw||[]).filter(w=>names.includes(w)).every(hit)&&seen.filter(n=>(p.kw||[]).some(w=>noteTxt(n).includes(w))).length>=2;
+}
+// every new card is taught (read and understood) before it is ever asked
+function teachable(c){return session&&session.mode==='srs'&&c.k!=='rev'&&isNew(c.id)}
 function teachDone(){
   const id=session&&session.cur;if(!id||!isNew(id))return;const now=Date.now();
   const lg=logToday();const prevLog=Object.assign({},lg);
@@ -516,6 +540,7 @@ function teachDone(){
   const nid=BYID[id].nid;const ids=[id,...(NCARDS[nid]||[]).filter(x=>x!==id&&isNew(x)&&BYID[x].k!=='rev')];
   ids.forEach((x,i)=>{P.cards[x]={q:'learn',step:0,reps:0,lapses:0,due:now+(1+2*i)*MIN,taught:today()}});
   lg.n+=ids.length;session.nNew+=ids.length;session.newQueue=session.newQueue.filter(x=>!ids.includes(x));
+  session.step++;session.roundNew++;if(!session.taught.includes(nid))session.taught.push(nid);
   undoStack.push({id,ids,prev:null,prevLog,day:today(),wasNew:true});if(undoStack.length>20)undoStack.shift();
   persist('progress');nextCard();
 }
@@ -850,9 +875,11 @@ function startSession(chain){
   // new material lecture by lecture (understand one before mixing); reviews still come from all lectures
   const rr=LECS.flatMap(l=>byL[l[0]]||[]);
   const ordered=prereqOrder(rr.filter(id=>BYID[id].k!=='rev'||!isNew(BYID[id].nid)));
-  session={mode:'srs',cst:conceptStages(),newQueue:ordered.slice(0,c.newAvail),done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),cur:null,chain:!!chain};
-  for(const id of session.newQueue){const L=BYID[id].t;if(lecMap(L)&&!P.maps[L]){session.pendingMap=L;break}}
-  view='study';if(session.pendingMap){resetCardUI();render();window.scrollTo(0,0)}else nextCard();
+  // a guided round: ~15 steps. reviews first, then up to 4 new concepts (each taught before it is asked), one old mistake, and a short recall at the end
+  session={mode:'srs',cst:conceptStages(),newQueue:ordered.slice(0,c.newAvail),done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),cur:null,chain:!!chain,
+    size:ROUND_SIZE,step:0,roundNew:0,roundRev:0,taught:[],mcqUsed:false,recallDone:false,roundDone:false};
+  // a lecture's map is shown by nextCard right before its first new card, after the reviews
+  view='study';nextCard();window.scrollTo(0,0);
 }
 function lecMap(L){if(COURSE==='evo'&&EVO_MAPS[L])return EVO_MAPS[L];const l=(D.lectures||[]).find(x=>x.key===L);return l&&l.map||''}
 function mapHtml(t){
@@ -869,7 +896,7 @@ function mapPanel(L,inSession){
   return h('section',{class:'panel stack'},h('div',{class:'sub'},inSession?'לפני שמתחילים כרטיסים חדשים מההרצאה הזו':'מפת ההרצאה'),h('h2',{},lecName(L)),
     inSession?h('p',{class:'sub'},'דקה של קריאה: ככה כל כרטיס ייתלה על מסגרת, ולא יעמוד לבד. אפשר לחזור למפה בכל רגע ממסך הבית.'):null,
     mapHtml(lecMap(L)),
-    h('div',{class:'row'},inSession?h('button',{class:'primary',on:{click:()=>{P.maps[L]=today();persist('progress');session.pendingMap=null;nextCard()}}},'הבנתי, מתחילים')
+    h('div',{class:'row'},inSession?h('button',{class:'primary',on:{click:()=>{P.maps[L]=today();persist('progress');session.pendingMap=null;if(session.size)session.step++;nextCard();window.scrollTo(0,0)}}},'הבנתי, מתחילים')
       :h('button',{class:'primary',on:{click:()=>{view=mapFrom||'home';render();window.scrollTo(0,0)}}},'חזרה')));
 }
 let mapL=null;
@@ -892,15 +919,75 @@ function nextCard(){
     else if(s.due<end)rev.push(c.id)}
   learnDue.sort((a,b)=>st(a).due-st(b).due);rev.sort((a,b)=>st(a).due-st(b).due);
   session.newQueue=session.newQueue.filter(id=>BYID[id]&&isNew(id));
+  if(session.roundDone)return;
+  if(session.step>=session.size)return finishRound();
   let pick=null;
   if(learnDue.length)pick=learnDue[0];
-  else{const useNew=session.newQueue.length&&(!rev.length||session.done%4===3);
-    if(useNew)pick=session.newQueue[0];else if(rev.length)pick=rev[0];else if(session.newQueue.length)pick=session.newQueue[0];
-    else if(ahead&&st(ahead).due-now<=20*MIN)pick=ahead}
+  else{
+    // one question you got wrong before, once its concepts were learned
+    if(!session.mcqUsed&&session.step>=3){const due=mcqDue();if(due.length){session.mcqUsed=true;session.mcq=mcqItem(shuffle(due)[0]);session.cur=null;render();window.scrollTo(0,0);return}}
+    const left=session.size-session.step;
+    const canNew=session.newQueue.length&&session.roundNew<ROUND_NEW&&left>=4;
+    if(rev.length&&session.roundRev<ROUND_REV)pick=rev[0];
+    else if(canNew)pick=session.newQueue[0];
+    else if(rev.length)pick=rev[0];
+    else if(ahead&&st(ahead).due-now<=20*MIN)pick=ahead;
+    if(!pick)return finishRound()}
   // entering a new lecture: show its map first (not for a single concept brought forward from a later lecture)
   if(pick&&isNew(pick)&&!session.pendingMap){const L=BYID[pick].t,li=LECS.findIndex(l=>l[0]===L);
     if(lecMap(L)&&!P.maps[L]&&!session.newQueue.some(x=>x!==pick&&LECS.findIndex(l=>l[0]===BYID[x].t)<li)){session.pendingMap=L;session.cur=null;resetCardUI();render();window.scrollTo(0,0);return}}
   session.cur=pick;session.waitUntil=(!pick&&ahead)?st(ahead).due:null;render();
+}
+// end of a round: a short recall on one concept taught in it, then the summary
+function finishRound(){
+  session.cur=null;session.waitUntil=null;resetCardUI();
+  if(!session.recallDone&&session.taught.length){session.recallDone=true;
+    const named=session.taught.filter(nid=>(NDEF[nid]||[]).length);const nid=(named.length?named:session.taught)[Math.floor(Math.random()*(named.length||session.taught.length))];
+    session.recall={nid,text:'',shown:false};render();window.scrollTo(0,0);return}
+  endRound();
+}
+function endRound(){session.recall=null;session.mcq=null;session.roundDone=true;session.cur=null;persist('progress');render();window.scrollTo(0,0)}
+function noteName(nid){const n=NBYID[nid];if(!n)return '';const d=NDEF[nid]||[];if(d.length)return d.join(', ');const t=termOf(n);if(t)return t;const p=plain(n.f||n.x||'');return p.length>34?p.slice(0,32)+'…':p}
+function noteBody(n){return h('div',{class:'stack',style:'gap:8px'},
+  n.k==='qa'?h('div',{},h('b',{},n.f),' ',n.b):h('div',{html:esc(n.x).replace(CZ,'<span class="ans">$2</span>')}),
+  n.L?h('div',{class:'note lesson'},h('b',{},'הסבר'),n.L):null,n.e?h('div',{class:'note'},h('b',{},n.L?'הנקודה לזכור':'הסבר'),n.e):null)}
+function mcqStepView(){
+  const z=session.mcq;
+  const next=()=>{session.mcq=null;session.step++;nextCard();window.scrollTo(0,0)};
+  return h('div',{class:'stack'},h('article',{class:'card'},
+    h('div',{class:'meta'},h('span',{},lecName(z.n.t)),h('span',{},'שאלה שטעית בה')),
+    h('div',{class:'ask'},'פעם קודמת טעית כאן. עכשיו שלמדת את המושגים, נסה שוב:'),
+    h('div',{class:'q',html:z.promptHtml}),
+    h('div',{class:'opts'},...z.opts.map(o=>h('button',{class:z.picked?(o===z.answer?'right':o===z.picked?'wrong':''):'',disabled:!!z.picked,
+      on:{click:()=>{z.picked=o;mcqResult(z.n.id,o===z.answer);session.done++;if(o!==z.answer)session.again++;render()}}},o))),
+    z.picked&&z.n.e?h('div',{class:'note'},h('b',{},'הסבר'),z.n.e):null),
+    z.picked?h('div',{class:'dock'},h('div',{class:'dockin'},h('button',{class:'primary reveal',on:{click:next}},'המשך'))):null);
+}
+function recallView(){
+  const r=session.recall,n=NBYID[r.nid];if(!n){endRound();return h('div')}
+  const name=noteName(r.nid);
+  if(!r.shown){
+    const ta=h('textarea',{dir:'auto',rows:'4',placeholder:'במילים שלך…'});ta.value=r.text;ta.addEventListener('input',()=>r.text=ta.value);setTimeout(()=>ta.focus(),0);
+    return h('section',{class:'panel stack'},h('h2',{},'לפני הסיכום: שליפה בלי רמז'),
+      h('p',{},'בלי להציץ: הסבר במשפט או שניים מה זה ',h('b',{},name),'.'),
+      h('p',{class:'sub'},'להיזכר בלי שום רמז הוא התרגול שהכי מחזק את הזיכרון. זה לא נבדק, זה בשבילך.'),ta,
+      h('div',{class:'row'},h('button',{class:'primary',on:{click:()=>{r.shown=true;render()}}},'הצג את ההסבר'),h('button',{on:{click:endRound}},'דלג')));
+  }
+  return h('section',{class:'panel stack'},h('h2',{},name),
+    r.text.trim()?h('div',{class:'note mine'},h('b',{},'מה שכתבת'),r.text):null,
+    noteBody(n),h('p',{class:'sub'},'השווה: מה היה חסר אצלך? את זה כדאי לזכור.'),
+    h('div',{},h('button',{class:'primary',on:{click:endRound}},'לסיכום הסבב')));
+}
+function stepBar(){
+  const s=session;let kind=null;
+  if(s.pendingMap)kind='map';else if(s.drill)kind='drill';else if(s.mcq)kind='mcq';else if(s.recall)kind='recall';
+  else if(s.cur&&BYID[s.cur]){const c=BYID[s.cur],x=st(s.cur);kind=teachable(c)?'teach':!x?'first':x.q==='review'?'review':x.q==='relearn'?'relearn':'first'}
+  const K={map:['פתיחת הרצאה','לפני מושגים חדשים: התמונה הגדולה של ההרצאה'],teach:['מושג חדש','קודם קוראים ומבינים. השאלה עליו תגיע בעוד כמה צעדים'],
+    first:['בדיקה','נזכרים במה שלמדת לפני כמה דקות'],review:['חזרה','חומר שלמדת בעבר, כדי שלא יישכח'],relearn:['עוד פעם','משהו שהתבלבל, עכשיו מחזקים אותו'],
+    drill:['הבחנה','שני מושגים שקל לבלבל ביניהם'],mcq:['שאלה שטעית בה','בודקים שהטעות כבר תוקנה'],recall:['סיכום','שולפים בלי רמז את מה שלמדת בסבב']}[kind];
+  const n=Math.min(s.step+1,s.size);
+  return h('div',{class:'stepbar'},h('div',{class:'sl'},h('span',{},'צעד '+n+' מתוך '+s.size),K?h('b',{},K[0]):null),
+    h('div',{class:'progress'},h('i',{style:`width:${100*Math.min(s.step,s.size)/s.size}%`})),K?h('div',{class:'why'},K[1]):null);
 }
 function answer(g){
   const id=session.cur;if(!id||!revealed)return;const now=Date.now();
@@ -911,13 +998,12 @@ function answer(g){
   P.cards[id]=schedule(id,g,now,false);
   // review history (card, minute, grade, confidence) kept for tuning the scheduler to this learner later
   P.rl=(P.rl||[]).concat([[id,Math.round(now/60000),g,conf?conf[0]:'']]);if(P.rl.length>1500)P.rl=P.rl.slice(-1500);
-  // metacognition: how well did the prediction before the reveal match the result?
-  if(conf){P.cards[id].cf=conf;lg['c_'+conf]=(lg['c_'+conf]||0)+1;if(g>1)lg['k_'+conf]=(lg['k_'+conf]||0)+1;if(conf==='sure'&&g===1)P.cards[id].ill=(P.cards[id].ill||0)+1}
   lg.t++;if(wasNew)lg.n++;if(wasReview){lg.r++;if(g>1)lg.ok++}
   if(wasNew)session.newQueue=session.newQueue.filter(x=>x!==id);
   undoStack.push({id,prev,prevLog,day:today(),wasNew});if(undoStack.length>20)undoStack.shift();
   if(g===1&&P.cards[id].q!=='review'&&P.cards[id].due>=nextBoundary(now))toast('שלוש פעמים "שוב" היום. הכרטיס יחזור מחר, אחרי שינה');
-  session.done++;if(g===1)session.again++;if(wasNew)session.nNew++;if(conf==='sure'&&g===1)session.ill++;
+  session.done++;if(g===1)session.again++;if(wasNew)session.nNew++;
+  session.step++;if(wasReview)session.roundRev++;
   if(g===1)maybeDrill(id);
   persist('progress');nextCard();
 }
@@ -927,12 +1013,13 @@ function undo(){
   else if(u.prev)P.cards[u.id]=u.prev;else delete P.cards[u.id];
   if(P.rl&&P.rl.length&&P.rl[P.rl.length-1][0]===u.id)P.rl.pop();
   P.log[u.day]=u.prevLog;if(u.wasNew)session.newQueue.unshift(u.id);
-  session.done=Math.max(0,session.done-1);persist('progress');resetCardUI();session.cur=u.id;render();toast('התשובה האחרונה בוטלה');
+  session.done=Math.max(0,session.done-1);
+  if(session.size){session.step=Math.max(0,session.step-1);if(u.ids)session.roundNew=Math.max(0,session.roundNew-1);else if(u.prev&&u.prev.q==='review')session.roundRev=Math.max(0,session.roundRev-1)}
+  persist('progress');resetCardUI();session.cur=u.id;render();toast('התשובה האחרונה בוטלה');
 }
 
 // ---------- stats ----------
 function weakCards(){return CARDS.filter(c=>{const s=st(c.id);return s&&((s.lapses||0)>=2||(s.ill||0)>=1||(s.D!=null&&s.D>=8.5))}).sort((a,b)=>((st(b.id).lapses||0)+(st(b.id).ill||0))-((st(a.id).lapses||0)+(st(a.id).ill||0)))}
-function calib(){const cut=dayKey(Date.now()-30*DAY);const o={sure:[0,0],unsure:[0,0],none:[0,0]};for(const [k,v] of Object.entries(P.log))if(k>=cut)for(const c in o){o[c][0]+=v['c_'+c]||0;o[c][1]+=v['k_'+c]||0}return o}
 function advance(ids){let n=0;const now=Date.now();for(const id of new Set(ids)){const s=P.cards[id];if(s&&s.q==='review'&&s.due>now){s.due=now;n++}}if(n)persist('progress');return n}
 function streak(){let n=0;const t=new Date(Date.now()-ROLL*HOUR);if(!(P.log[dayKeyOf(t)]?.t))t.setDate(t.getDate()-1);
   for(;;){if(P.log[dayKeyOf(t)]?.t){n++;t.setDate(t.getDate()-1)}else break}return n}
@@ -1005,7 +1092,7 @@ function editorEl(note,onDone){
 }
 
 // ---------- quiz (multiple choice) ----------
-function mcqs(){return (COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]).filter(m=>(lecFilter==='all'||m.t===lecFilter)&&((P.mcqS&&P.mcqS[m.id])||(lecSeen(m.t)&&textReady(m.f+' '+m.o.join(' ')))))}
+function mcqs(){return (COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]).filter(m=>(lecFilter==='all'||m.t===lecFilter)&&mcqReady(m))}
 function buildQuiz(count){
   count=count||10;
   // questions written for the exam format come first; generated ones fill the rest
@@ -1016,18 +1103,20 @@ function buildQuiz(count){
 }
 function buildGenQuiz(count){
   const pool=[];
-  const defsAll=NOTES.filter(n=>n.k==='qa'&&termOf(n));const seenD=defsAll.filter(n=>noteSeen(n.id));const defs=seenD.length>=4?seenD:defsAll;
-  for(const n of seenD){if(lecFilter!=='all'&&n.t!==lecFilter)continue;if(!P.cards[n.id])continue;pool.push({kind:'def',n,answer:termOf(n),prompt:n.b,ask:'איזה מושג מתאים להגדרה?'})}
-  for(const c of CARDS){if(c.k!=='cz'||!inFilter(c)||!P.cards[c.id])continue;const n=NBYID[c.nid];const a=clozeAnswer(n.x,c.n);if(a.length>40)continue;pool.push({kind:'cz',n,c,answer:a,promptHtml:clozeFront(n.x,c.n),ask:'השלם את החסר'})}
-  const qs=shuffle(pool).slice(0,count||10).map(item=>{
-    const same=item.kind==='def'?defs.map(d=>termOf(d)):CARDS.filter(x=>x.k==='cz').map(x=>clozeAnswer(NBYID[x.nid].x,x.n)).filter(a=>a.length<=40);
-    const lecOf=item.kind==='def'?defs.filter(d=>d.t===item.n.t).map(d=>termOf(d)):CARDS.filter(x=>x.k==='cz'&&x.t===item.n.t).map(x=>clozeAnswer(NBYID[x.nid].x,x.n));
+  // questions and wrong options come only from material already learned
+  const defs=NOTES.filter(n=>n.k==='qa'&&termOf(n)&&noteSeen(n.id));
+  const seenCz=CARDS.filter(x=>x.k==='cz'&&P.cards[x.id]);
+  if(defs.length>=4)for(const n of defs){if(lecFilter!=='all'&&n.t!==lecFilter)continue;if(!P.cards[n.id]||!textReady(noteTxt(n)))continue;pool.push({kind:'def',n,answer:termOf(n),prompt:n.b,ask:'איזה מושג מתאים להגדרה?'})}
+  for(const c of seenCz){if(!inFilter(c))continue;const n=NBYID[c.nid];const a=clozeAnswer(n.x,c.n);if(a.length>40||!textReady(plain(n.x)))continue;pool.push({kind:'cz',n,c,answer:a,promptHtml:clozeFront(n.x,c.n),ask:'השלם את החסר'})}
+  const qs=shuffle(pool).map(item=>{
+    const same=item.kind==='def'?defs.map(d=>termOf(d)):seenCz.map(x=>clozeAnswer(NBYID[x.nid].x,x.n)).filter(a=>a.length<=40);
+    const lecOf=item.kind==='def'?defs.filter(d=>d.t===item.n.t).map(d=>termOf(d)):seenCz.filter(x=>x.t===item.n.t).map(x=>clozeAnswer(NBYID[x.nid].x,x.n));
     const ok=a=>norm(a)!==norm(item.answer)&&!norm(item.answer).includes(norm(a))&&!norm(a).includes(norm(item.answer));
     const byLen=arr=>[...new Set(arr)].filter(ok).sort((a,b)=>Math.abs(a.length-item.answer.length)-Math.abs(b.length-item.answer.length));
     let distract=shuffle(byLen(lecOf).slice(0,6)).slice(0,3);
     if(distract.length<3)distract=distract.concat(byLen(same).filter(a=>!distract.includes(a)).slice(0,3-distract.length));
-    return Object.assign(item,{opts:shuffle([item.answer,...distract]),picked:null});
-  });
+    return distract.length<2?null:Object.assign(item,{opts:shuffle([item.answer,...distract]),picked:null});
+  }).filter(Boolean).slice(0,count||10);
   return {qs,i:0,score:0};
 }
 
@@ -1064,11 +1153,11 @@ const EVO_PAIRS=[
   tip:'סחיפה = מקרה בתוך אוכלוסייה. זרימה = אללים שעוברים בין אוכלוסיות.'}
 ];
 function pairsAll(){return (COURSE==='evo'?EVO_PAIRS:[]).concat(D.pairs||[])}
-function pairsHere(){return pairsAll().filter(p=>(lecFilter==='all'||!p.t||p.t===lecFilter)&&NOTES.filter(n=>noteSeen(n.id)&&p.kw.some(w=>((n.f||'')+' '+(n.b||'')+' '+plain(n.x||'')).includes(w))).length>=2)}
+function pairsHere(){return pairsAll().filter(p=>(lecFilter==='all'||!p.t||p.t===lecFilter)&&pairReady(p))}
 function pairFor(id){
   const c=BYID[id];if(!c)return null;const n=NBYID[c.nid];if(!n)return null;
-  const txt=(n.f||'')+' '+(n.b||'')+' '+plain(n.x||'');let best=null,bs=0;
-  for(const p of pairsAll()){let k=0;for(const w of p.kw||[])if(txt.includes(w))k++;if(k>bs){bs=k;best=p}}
+  const txt=noteTxt(n);let best=null,bs=0;
+  for(const p of pairsAll()){if(!pairReady(p))continue;let k=0;for(const w of p.kw||[])if(txt.includes(w))k++;if(k>bs){bs=k;best=p}}
   return best;
 }
 function maybeDrill(id){
@@ -1077,7 +1166,7 @@ function maybeDrill(id){
 }
 function drillView(){
   const z=session.drill,p=z.p;
-  const done=()=>{session.drill=null;render();window.scrollTo(0,0)};
+  const done=()=>{session.drill=null;if(session.size){session.step++;nextCard()}else render();window.scrollTo(0,0)};
   const tbl=h('div',{class:'cmpt'},...p.terms.map(t=>h('div',{class:'t'},h('b',{},t[0]),t[1])));
   if(z.i>=z.items.length)return h('section',{class:'panel stack'},h('h2',{},'סיימת את ההבחנה'),h('p',{},z.ok+' מתוך '+z.items.length+' נכון.'),p.tip?h('p',{class:'sub'},p.tip):null,
     h('button',{class:'primary',on:{click:done}},'חזרה לכרטיסים'));
@@ -1121,9 +1210,8 @@ function mcqResult(id,ok){
   else return;
   persist('progress');
 }
-function mcqDue(){const t=today();const all=(COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]);return all.filter(m=>P.mcqS&&P.mcqS[m.id]&&P.mcqS[m.id].due<=t)}
+function mcqDue(){const t=today();const all=(COURSE==='evo'?EVO_MCQ:[]).concat(D.mcq||[]);return all.filter(m=>P.mcqS&&P.mcqS[m.id]&&P.mcqS[m.id].due<=t&&mcqReady(m))}
 function mcqItem(m){return {kind:'mc',n:{id:m.id,t:m.t,e:m.e},answer:m.o[0],promptHtml:esc(m.f),ask:'בחר את התשובה הנכונה',opts:shuffle(m.o),picked:null}}
-function startMcqReview(){const due=mcqDue();if(!due.length)return;lecFilter='all';pmode='mcq';exam=null;recall=null;quiz={qs:shuffle(due).slice(0,20).map(mcqItem),i:0,score:0,review:true};view='quiz';render();window.scrollTo(0,0)}
 // ---------- "there is a mistake here" flags ----------
 let flagOpen=null;
 function flagBox(id,label){
@@ -1260,32 +1348,26 @@ function switchCourse(id){
 }
 function lecChips(){return h('div',{class:'chips'},[['all','כל ההרצאות'],...LECS.map(([k])=>[k,lecShort(k)])].map(([k,v])=>h('button',{class:'chip','aria-pressed':String(lecFilter===k),on:{click:()=>{lecFilter=k;if(view==='quiz'){quiz=null;exam=null;recall=null;pq=null}render()}}},v)))}
 
-function todayPanel(){
-  if(COURSES.length<2)return null;
-  const rows=COURSES.map(c=>({c,k:courseCounts(c.id)}));const all=rows.reduce((a,r)=>a+r.k.total,0);
-  const startAll=()=>{const first=rows.find(r=>r.c.id===COURSE&&r.k.total)||rows.find(r=>r.k.total);if(!first)return;if(first.c.id!==COURSE)switchCourse(first.c.id);startSession(true)};
-  return h('section',{class:'panel today'},h('h2',{},'היום'),
-    ...rows.map(r=>h('div',{class:'trow'},h('div',{class:'tl'},ring(doneToday(r.c.id),r.k.total),h('div',{},h('div',{class:'tname'},r.c.short),
-      h('div',{class:'tnum'},r.k.total?[h('b',{},r.k.newAvail),' חדשים · ',h('b',{},r.k.learn+r.k.review),' לחזרה']:'אין מה ללמוד היום ✓'))),
-      r.k.total?h('button',{on:{click:()=>{if(r.c.id!==COURSE)switchCourse(r.c.id);startSession(false)}}},'רק את זה'):null)),
-    h('button',{class:'primary',disabled:!all,on:{click:startAll}},all?'התחל את כל החזרות של היום':'סיימת הכול להיום'));
+// the one thing to do now: a sentence that says what comes next, and a single big button
+function firstNewLec(){for(const [L] of LECS)if(CARDS.some(c=>c.t===L&&c.k!=='rev'&&isNew(c.id)))return L;return null}
+function heroPanel(){
+  const rows=COURSES.map(c=>({c,k:courseCounts(c.id)}));
+  const cur=rows.find(r=>r.c.id===COURSE);const target=cur&&cur.k.total?cur:rows.find(r=>r.k.total);
+  const rings=COURSES.length>1?h('div',{class:'minirings'},...rows.map(r=>h('span',{class:'mr'},ring(doneToday(r.c.id),r.k.total),r.c.short))):null;
+  if(!target)return h('section',{class:'panel stack hero'},h('h2',{},'מה עכשיו'),
+    h('p',{class:'now'},'סיימת את כל מה שמתוכנן להיום ✓'),h('p',{class:'sub'},'הכרטיסים הבאים יחכו לך מחר. אם בא לך עוד, אפשר לתרגל בלשונית "תרגול". זה לא משנה את לוח החזרות.'),rings);
+  const k=target.k,due=k.learn+k.review;const parts=[];if(due)parts.push(due+' חזרות');if(k.newAvail)parts.push(k.newAvail+' מושגים חדשים');
+  const L=target.c.id===COURSE&&k.newAvail?firstNewLec():null;
+  const rounds=Math.max(1,Math.ceil((due+k.newAvail*3)/ROUND_SIZE));
+  return h('section',{class:'panel stack hero'},h('h2',{},'מה עכשיו'),
+    h('p',{class:'now'},target.c.id!==COURSE?'ב'+courseObj().short+' סיימת להיום. ':'',(COURSES.length>1?'ב'+target.c.short+': ':''),h('b',{},parts.join(' ו-')),L?' (מ'+lecName(L)+')':'','.'),
+    h('p',{class:'sub'},'בערך '+(rounds===1?'סבב אחד':rounds+' סבבים')+' של כ-5 דקות. בכל סבב האפליקציה מובילה אותך צעד אחרי צעד: קודם חזרות, אחר כך מושגים חדשים, וכל מושג מוסבר לפני שנשאלים עליו.'),
+    h('button',{class:'primary go',on:{click:()=>{lecFilter='all';if(target.c.id!==COURSE)switchCourse(target.c.id);startSession(true)}}},'המשך ללמוד'),rings);
 }
 function renderHome(){
   const c=counts();const total=c.newAvail+c.learn+c.review;
-  let hero=null;
-  if(COURSES.length<2)hero=h('section',{class:'panel stack'},
-    h('div',{class:'counts'},
-      h('div',{class:'count c-new'},h('b',{},c.newAvail),h('span',{},'חדשים להיום')),
-      h('div',{class:'count c-learn'},h('b',{},c.learn),h('span',{},'בלמידה')),
-      h('div',{class:'count c-rev'},h('b',{},c.review),h('span',{},'לחזרה היום'))),
-    lecChips(),h('div',{class:'row startrow'},h('button',{class:'primary',disabled:!total,on:{click:()=>startSession(false)}},total?'התחל':'סיימת להיום')));
-  else if(LECS.length>1)hero=h('section',{class:'panel'},h('details',{open:lecFilter!=='all'},h('summary',{},'לימוד ממוקד בהרצאה אחת'),
-    h('div',{class:'stack',style:'gap:10px'},lecChips(),
-      h('div',{class:'row'},h('button',{disabled:!total,on:{click:()=>startSession(false)}},total?(lecFilter==='all'?'ללמוד את '+courseObj().short:'ללמוד רק את '+lecShort(lecFilter))+' ('+total+')':'אין כאן מה ללמוד היום'),
-        !total&&c.newTotal?h('span',{class:'sub'},'הגעת למכסת הכרטיסים החדשים להיום.'):null))));
-  const md=mcqDue().length;
-  const mq=md?h('section',{class:'panel stack'},h('h2',{},'שאלות שטעית בהן'),h('p',{class:'sub'},md+' שאלות אמריקאיות שטעית בהן בעבר מחכות לניסיון נוסף. שאלה שתענה עליה נכון תחזור בעוד כמה ימים, ואחר כך בעוד שבוע ויותר.'),
-    h('div',{},h('button',{class:'primary',on:{click:startMcqReview}},'לענות עליהן ('+md+')'))):null;
+  const focus=LECS.length>1?h('div',{class:'stack',style:'gap:10px'},h('b',{},'לימוד ממוקד בהרצאה אחת'),lecChips(),
+      h('div',{class:'row'},h('button',{disabled:!total||lecFilter==='all',on:{click:()=>startSession(false)}},lecFilter==='all'?'בחר הרצאה':total?'ללמוד רק את '+lecShort(lecFilter)+' ('+total+')':'אין כאן מה ללמוד היום'))):null;
   // exam
   const dl=daysToExam();
   const dateIn=h('input',{type:'date',id:'examDate',value:P.settings.examDate,on:{change:e=>{P.settings.examDate=e.target.value;persist('progress');render()}}});
@@ -1299,8 +1381,9 @@ function renderHome(){
       h('label',{class:'row',for:'autoPace'},h('input',{type:'checkbox',id:'autoPace',checked:P.settings.autoPace,on:{change:e=>{P.settings.autoPace=e.target.checked;persist('progress');render()}}}),'להתאים את מספר הכרטיסים החדשים ביום לתאריך המבחן'),
       h('p',{class:'sub'},'כל כרטיס מתוזמן לחזור לפני המבחן גם אם המרווח שלו ארוך יותר.'),dl<=14?h('p',{class:'boost'},'מצב לפני מבחן: יעד הזכירה עלה ל-95%, כך שהכרטיסים חוזרים בתדירות גבוהה יותר.'):h('p',{class:'sub'},'בשבועיים האחרונים יעד הזכירה יעלה אוטומטית ל-95%.'),
       h('div',{class:'row'},h('button',{on:{click:()=>startCram('all')}},'חזרה כללית על כל מה שלמדתי'),h('label',{class:'row sub',for:'examDate'},'תאריך',dateIn)));}
-  const exam=h('section',{class:'panel'},h('h2',{},'מבחן'),examBody);
-  app.append(h('div',{class:'stack'},...homeBanners(),todayPanel(),gardenTeaser(),mq,hero,exam));
+  const more=h('section',{class:'panel'},h('details',{open:lecFilter!=='all'},h('summary',{},'עוד אפשרויות: הרצאה מסוימת, תאריך מבחן'),
+    h('div',{class:'stack',style:'gap:16px;margin-top:10px'},focus,h('div',{class:'stack',style:'gap:8px'},h('b',{},'מבחן'),examBody))));
+  app.append(h('div',{class:'stack'},...homeBanners(),heroPanel(),gardenTeaser(),more));
 }
 function renderProgress(){
   const dl=daysToExam();
@@ -1309,11 +1392,7 @@ function renderProgress(){
     h('div',{class:'stats'},
       h('div',{class:'stat'},h('b',{},(P.log[today()]?.t||0)),h('span',{},'תשובות היום')),
       h('div',{class:'stat'},h('b',{},stk+(stk===1?' יום':' ימים')),h('span',{},'רצף למידה')),
-      h('div',{class:'stat'},h('b',{},ret==null?'–':ret+'%'),h('span',{},'זכירה ב-30 יום'))),
-    (()=>{const cb=calib();const pc=a=>a[0]?Math.round(100*a[1]/a[0])+'%':'–';if(!(cb.sure[0]+cb.unsure[0]+cb.none[0]))return null;
-      return h('div',{class:'stack',style:'gap:4px;margin-top:10px'},h('b',{style:'font-size:.95rem'},'כמה מדויקת ההערכה העצמית שלך'),
-        h('p',{class:'sub',style:'margin:0'},'כשאמרת "יודע" ידעת ב-'+pc(cb.sure)+' מהמקרים · "לא בטוח": '+pc(cb.unsure)+' · "אין לי מושג": '+pc(cb.none)+'.'),
-        h('p',{class:'sub',style:'margin:0'},cb.sure[0]>=10&&cb.sure[1]/cb.sure[0]<0.85?'אתה נוטה להעריך יתר. כרטיסים שהיית בטוח בהם וטעית מסומנים ב"כרטיסים קשים".':'ככל שהאחוזים מתרחקים זה מזה, אתה מכיר טוב יותר את מה שאתה יודע.'))})());
+      h('div',{class:'stat'},h('b',{},ret==null?'–':ret+'%'),h('span',{},'זכירה ב-30 יום'))));
   const lecs=h('section',{class:'panel'},h('h2',{},'לפי הרצאה'),
     ...LECS.map(([L])=>{const s=lecStats(L);if(!s.tot)return null;const pct=x=>(100*x/s.tot)+'%';
       return h('div',{class:'lec'},h('div',{class:'lechead'},h('span',{},lecName(L),lecMap(L)?h('button',{class:'mapbtn',style:'margin-inline-start:8px',on:{click:()=>{mapL=L;mapFrom='stats';view='map';render();window.scrollTo(0,0)}}},'מפה'):null),h('span',{},(s.m+s.y)+'/'+s.tot+' נלמדו')),
@@ -1329,7 +1408,7 @@ function renderProgress(){
     weak.length?h('div',{class:'stack'},
       h('ul',{class:'weak'},...weak.slice(0,8).map(c=>{const q=cardQA(c);return h('li',{},h('span',{},c.k==='cz'?q.answer+' · '+plain(q.n.x).slice(0,60)+'…':(c.k==='rev'?q.answer:q.n.f)),h('span',{class:'lapses'},(st(c.id).ill?'בטוח וטעית '+st(c.id).ill+'× · ':'')+'נשכח '+(st(c.id).lapses||0)+'×'))})),
       h('div',{class:'row'},h('button',{on:{click:()=>startCram('weak')}},'תרגול ממוקד ב-'+weak.length+' הקשים'),h('span',{class:'sub'},'לא משנה את לוח החזרות')))
-    :h('p',{class:'sub'},'כרטיס שתשכח פעמיים, או שהיית בטוח בו וטעית, יופיע כאן ותוכל לתרגל אותו בנפרד.'));
+    :h('p',{class:'sub'},'כרטיס שתשכח פעמיים יופיע כאן ותוכל לתרגל אותו בנפרד.'));
   app.append(h('div',{class:'stack'},cmapPanel(),stats,lecs,fcs,weakP));
 }
 function studySettings(){
@@ -1340,25 +1419,25 @@ function studySettings(){
     h('div',{class:'settings'},
       h('label',{for:'newPerDay'},'כרטיסים חדשים ביום'+(S.examDate&&S.autoPace&&pacedNewPerDay()>S.newPerDay?` (בגלל המבחן: ${pacedNewPerDay()})`:''),h('input',{type:'number',id:'newPerDay',min:'0',max:'200',value:S.newPerDay,on:{change:e=>{S.newPerDay=Math.max(0,Math.min(200,+e.target.value||0));persist('progress');render()}}})),
       h('label',{for:'retention'},'יעד זכירה (%)',h('input',{type:'number',id:'retention',min:'75',max:'97',value:Math.round(S.retention*100),on:{change:e=>{S.retention=clamp((+e.target.value||90)/100,0.75,0.97);persist('progress');render()}}})),
-      h('label',{for:'teachAll'},'להציג כל כרטיס חדש כחומר ללמידה לפני שנשאלים עליו',h('input',{type:'checkbox',id:'teachAll',checked:S.teachAll!==false,on:{change:e=>{S.teachAll=e.target.checked;persist('progress')}}})),
       h('label',{for:'typeAnswer'},'להקליד תשובה לפני החשיפה',h('input',{type:'checkbox',id:'typeAnswer',checked:S.typeAnswer,on:{change:e=>{S.typeAnswer=e.target.checked;persist('progress')}}})),
       h('label',{for:'reverse'},'כרטיסים הפוכים (הגדרה ← מושג)',h('input',{type:'checkbox',id:'reverse',checked:S.reverse,on:{change:e=>{S.reverse=e.target.checked;persist('progress');rebuild();render()}}})),
       h('p',{class:'sub'},'התזמון מבוסס על FSRS, האלגוריתם של אנקי החדש. הוא מעריך לכל כרטיס כמה זמן תזכור אותו, ומחזיר אותו כשהסיכוי לזכור יורד ליעד הזכירה. יעד גבוה יותר פירושו יותר חזרות.'),
-      h('p',{class:'sub'},'נסה להיזכר לפני החשיפה, ואמור לעצמך עד כמה אתה בטוח. אחר כך דרג ביושר: "שוב" פירושו שלא נזכרת, "קשה" שנזכרת במאמץ, "טוב" שנזכרת, ו"קל" שזה היה מיידי. כמה דקות כל יום עדיפות על לימוד מרוכז לפני המבחן.'),
-      h('p',{class:'sub'},'בלשונית "תרגול": שליפה חופשית אחרי כל הרצאה (כתוב כל מה שאתה זוכר ובדוק מה חסר), ומבחן מסכם בשבועות שלפני המבחן. כרטיס שחוזר ונשכח יבקש ממך רמז במילים שלך.'),
+      h('p',{class:'sub'},'איך זה עובד: לוחצים "המשך ללמוד" ומקבלים סבב קצר של כ-15 צעדים. קודם חזרות, אחר כך מושגים חדשים: כל מושג חדש מוסבר לפני שנשאלים עליו, ואף פעם לא תופיע שאלה על משהו שעוד לא למדת. בסוף כל סבב יש סיכום.'),
+      h('p',{class:'sub'},'בכל שאלה: נסה להיזכר, לחץ "הצג תשובה", ודרג ביושר: "שוב" = לא זכרתי, "קשה" = נזכרתי במאמץ, "טוב" = זכרתי, "קל" = מיידי. כמה דקות כל יום עדיפות על לימוד מרוכז לפני המבחן.'),
       h('div',{},reset))));
   return set;
 }
 function renderStudy(){
   const s=session;
+  const live=s.mode==='srs'&&!s.roundDone;
   const bar=h('div',{class:'studybar'},
     h('button',{on:{click:()=>{resetCardUI();view='home';render()}}},'→ למסך הבית'),
-    s.mode==='srs'?(()=>{const c=counts();const cur=s.cur?st(s.cur):null;const kind=!cur?'n':(cur.q==='review'?'r':'l');
-      return h('div',{class:'remain','aria-label':'נותרו'},h('span',{class:'r-new'+(kind==='n'?' on':'')},Math.min(c.newAvail,s.newQueue.length),h('span',{class:'lbl'},'חדשים')),h('span',{class:'r-learn'+(kind==='l'?' on':'')},c.learn,h('span',{class:'lbl'},'בלמידה')),h('span',{class:'r-rev'+(kind==='r'?' on':'')},c.review,h('span',{class:'lbl'},'לחזרה')))})()
-      :h('div',{class:'sub'},'תרגול חופשי · נותרו '+s.queue.length),
-    undoStack.length&&s.mode==='srs'?h('button',{on:{click:undo}},'בטל אחרון'):null);
+    s.mode==='srs'?(live?stepBar():null):h('div',{class:'sub'},'תרגול חופשי · נותרו '+s.queue.length),
+    live&&undoStack.length&&s.cur?h('button',{on:{click:undo}},'בטל אחרון'):null);
   if(s.pendingMap){app.append(h('div',{class:'study'},bar,mapPanel(s.pendingMap,true)));return}
   if(s.drill){app.append(h('div',{class:'study'},bar,drillView()));return}
+  if(s.mcq){app.append(h('div',{class:'study'},bar,mcqStepView()));return}
+  if(s.recall){app.append(h('div',{class:'study'},bar,recallView()));return}
   app.append(h('div',{class:'study'},bar,s.cur&&BYID[s.cur]?cardView(BYID[s.cur]):doneView()));
 }
 function doneView(){
@@ -1366,16 +1445,17 @@ function doneView(){
   if(s.mode==='srs'&&s.waitUntil){const mins=Math.max(1,Math.round((s.waitUntil-Date.now())/MIN));
     clearTimeout(s.waitTimer);s.waitTimer=setTimeout(()=>{if(view==='study'&&session===s&&!s.cur)nextCard()},Math.min(60e3,s.waitUntil-Date.now()+500));
     return h('div',{class:'done'},h('div',{class:'big'},'הפסקה קצרה'),h('div',{class:'sub'},'הכרטיס הבא בלמידה יחזור בעוד '+mins+' דק׳. אפשר להישאר כאן, הוא יופיע לבד.'),h('button',{on:{click:()=>{view='home';render()}}},'למסך הבית'))}
-  const nx=s.mode==='srs'?nextCourseWithWork():null;
   const sum=sessionSummary(s);
-  const md=mcqDue().length;
-  const mcqBtn=md&&s.mode==='srs'?h('button',{on:{click:startMcqReview}},md+' שאלות אמריקאיות שטעית בהן מחכות'):null;
-  if(nx&&s.chain)return h('div',{class:'done'},h('div',{class:'big'},'סיימת את '+courseObj().short),sum,
-    h('div',{class:'sub'},'נשארו עוד '+nx.k.total+' כרטיסים ב'+nx.c.short+'.'),
-    h('button',{class:'primary',on:{click:()=>{switchCourse(nx.c.id);startSession(true)}}},'ממשיכים ל'+nx.c.short),
-    h('button',{on:{click:()=>{view='home';render()}}},'מספיק להיום'));
-  return h('div',{class:'done'},h('div',{class:'big'},s.mode==='cram'?'סיימת את התרגול':'סיימת להיום'),sum,mcqBtn,
-    h('button',{class:'primary',on:{click:()=>{view='home';render()}}},'למסך הבית'));
+  const home=(primary)=>h('button',{class:primary?'primary':'',on:{click:()=>{view='home';render();window.scrollTo(0,0)}}},primary?'למסך הבית':'מספיק להיום');
+  if(s.mode!=='srs')return h('div',{class:'done'},h('div',{class:'big'},'סיימת את התרגול'),sum,home(true));
+  // end of a guided round: what was learned, and one clear next step
+  const c=counts();const more=c.newAvail+c.learn+c.review>0;const nx=more?null:nextCourseWithWork();
+  const learned=s.taught.length?h('div',{class:'stack',style:'gap:6px;align-items:center'},h('div',{class:'sub'},'מה למדת בסבב הזה'),h('div',{class:'learned'},...s.taught.map(nid=>h('span',{},noteName(nid))))):null;
+  const nextLine=more?'נשאר עוד חומר להיום: '+(c.learn+c.review?(c.learn+c.review)+' לחזרה':'')+(c.learn+c.review&&c.newAvail?' ו-':'')+(c.newAvail?c.newAvail+' חדשים':'')+'.'
+    :nx?'ב'+courseObj().short+' סיימת להיום. ב'+nx.c.short+' מחכים עוד '+nx.k.total+'.':'סיימת את כל מה שמתוכנן להיום. הכרטיסים הבאים יחכו לך מחר.';
+  return h('div',{class:'done'},h('div',{class:'big'},more||nx?'סיימת סבב ✓':'סיימת להיום ✓'),sum,learned,h('p',{class:'msg'},nextLine),
+    more?h('button',{class:'primary',on:{click:()=>startSession(s.chain)}},'לסבב הבא'):nx?h('button',{class:'primary',on:{click:()=>{switchCourse(nx.c.id);startSession(true)}}},'ממשיכים ל'+nx.c.short):null,
+    home(!more&&!nx));
 }
 function sessionSummary(s){
   if(!s.done)return null;
@@ -1387,7 +1467,6 @@ function sessionSummary(s){
     s.mode==='srs'?h('div',{class:'stat'},h('b',{},s.nNew||0),h('span',{},'כרטיסים חדשים')):null,
     s.mode==='srs'?h('div',{class:'stat'},h('b',{},tm),h('span',{},'לחזרה מחר')):null);
   const msgs=[];
-  if(s.ill)msgs.push((s.ill===1?'פעם אחת':s.ill+' פעמים')+' היית בטוח וטעית. זה בדיוק המקום שבו הלמידה הכי משתלמת: הכרטיסים האלה יחזרו מהר יותר.');
   if(s.done>=10&&acc<70)msgs.push('אחוז ה"שוב" גבוה היום. זה בסדר בתחילת הרצאה חדשה; אם זה נמשך, כדאי להוריד את מספר הכרטיסים החדשים ביום.');
   let grow=null;
   if(s.cst){const now=conceptStages();const up=Object.keys(now).filter(k=>s.cst[k]&&STAGE_ORDER.indexOf(now[k])>STAGE_ORDER.indexOf(s.cst[k])&&STAGE_ORDER.indexOf(now[k])>=2);
@@ -1413,11 +1492,9 @@ function cardView(c){
     if(c.k!=='cz')ans.append(h('div',{class:'a'},q.answer));
     if(typed.trim()&&check)ans.append(h('div',{class:'cmp '+check.state,role:'status'},({ok:'✓ ',part:'≈ ',no:'✗ ',wait:''}[check.state])+'כתבת: '+typed+(check.text?' · '+check.text:'')));
     if(q.n.my)ans.append(h('div',{class:'note mine'},h('b',{},'הרמז שלך'),q.n.my));
-    // review cards: try to explain it yourself before reading the explanation
-    if(q.extra){if(s&&s.q==='review'&&session.mode==='srs')ans.append(h('details',{class:'note'},h('summary',{},'הסבר · קודם נסה להסביר לעצמך למה זה נכון'),q.extra));
-      else ans.append(h('div',{class:'note'},h('b',{},'הסבר'),q.extra))}
+    if(q.extra)ans.append(h('div',{class:'note'},h('b',{},'הסבר'),q.extra));
     if(q.n.L)ans.append(h('details',{class:'note'},h('summary',{},'ההסבר המלא מהלימוד הראשון'),q.n.L));
-    if(s&&((s.lapses||0)>=3||(s.ill||0)>=2)&&!q.n.my){
+    if(s&&(s.lapses||0)>=3&&!q.n.my){
       const mi=h('input',{type:'text',dir:'auto',placeholder:'קשר, דימוי, ראשי תיבות, דוגמה מהחיים…',style:'flex:1;min-width:0'});
       ans.append(h('div',{class:'note mine stack',style:'gap:6px'},h('b',{},'הכרטיס הזה חוזר ונשכח'),
         h('span',{class:'sub'},'רמז שתכתוב במילים שלך נזכר טוב יותר מכל הסבר מוכן. הוא יופיע מעכשיו בכל חזרה.'),
@@ -1430,14 +1507,12 @@ function cardView(c){
   const wrap=h('div',{class:'stack'},card);
   const dockin=h('div',{class:'dockin'});wrap.append(h('div',{class:'dock'},dockin));
   if(revealed)addSwipe(card);
-  if(!revealed)dockin.append(h('div',{class:'conf'},h('div',{class:'lbl'},'קודם נסה להיזכר. עד כמה אתה בטוח?'),
-    h('button',{class:'primary',id:'revealBtn',on:{click:()=>reveal('sure')}},'יודע'),
-    h('button',{on:{click:()=>reveal('unsure')}},'לא בטוח'),
-    h('button',{on:{click:()=>reveal('none')}},'אין לי מושג')));
-  else{const labels=['שוב','קשה','טוב','קל'];const sug=check&&{ok:3,part:2,no:1}[check.state];
-    dockin.append(h('div',{class:'grades'},...[1,2,3,4].map(g=>h('button',{class:'g'+g+(sug===g?' sug':''),on:{click:()=>answer(g)}},labels[g-1],session.mode==='srs'?h('small',{},previewLabel(c.id,g)):null))))}
-  if(revealed)dockin.append(h('div',{class:'swipehint'},'אפשר גם להחליק את הכרטיס: ימינה = טוב, שמאלה = שוב'));
-  dockin.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול':'מקשים: 1 יודע · 2 לא בטוח · 3 אין לי מושג'));
+  if(!revealed)dockin.append(h('div',{class:'hintline'},'נסה להיזכר בראש, ורק אז חשוף'),
+    h('button',{class:'primary reveal',id:'revealBtn',on:{click:()=>reveal()}},'הצג תשובה'));
+  else{const labels=['שוב','קשה','טוב','קל'],what=['לא זכרתי','במאמץ','זכרתי','מיידי'];const sug=check&&{ok:3,part:2,no:1}[check.state];
+    dockin.append(h('div',{class:'hintline'},'כמה טוב זכרת?'),
+      h('div',{class:'grades'},...[1,2,3,4].map(g=>h('button',{class:'g'+g+(sug===g?' sug':''),on:{click:()=>answer(g)}},labels[g-1],h('span',{class:'what'},what[g-1]),session.mode==='srs'?h('small',{},'שוב בעוד '+previewLabel(c.id,g)):null))))}
+  dockin.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול · אפשר גם להחליק: ימינה = טוב, שמאלה = שוב':'מקש: רווח או Enter'));
   if(inp)setTimeout(()=>inp.focus(),0);
   return wrap;
 }
@@ -1465,9 +1540,9 @@ function keyTerms(L){
   const map=new Map();
   const add=(term,ids,ctx)=>{term=String(term||'').trim();if(!term||term.length>30||words(term).length>4||!words(term).length)return;const k=norm(term);
     if(!map.has(k))map.set(k,{term,ids:[],ctx});map.get(k).ids.push(...ids)};
-  for(const n of NOTES){if(L!=='all'&&n.t!==L)continue;const ids=CARDS.filter(c=>c.nid===n.id).map(c=>c.id);
+  for(const n of NOTES){if(L!=='all'&&n.t!==L)continue;if(!noteSeen(n.id))continue;const ids=CARDS.filter(c=>c.nid===n.id).map(c=>c.id);
     if(n.k==='qa'){add(termOf(n)||n.b,ids,n.f)}
-    else{const ns=[...new Set([...(n.x||'').matchAll(/\{\{c(\d+)::/g)].map(m=>+m[1]))];for(const k of ns)add(clozeAnswer(n.x,k),ids.filter(id=>id===n.id+'-'+k),plain(n.x))}}
+    else{const ns=[...new Set([...(n.x||'').matchAll(/\{\{c(\d+)::/g)].map(m=>+m[1]))];for(const k of ns){const own=ids.filter(id=>id===n.id+'-'+k&&P.cards[id]);if(own.length)add(clozeAnswer(n.x,k),own,plain(n.x))}}}
   return [...map.values()];
 }
 function renderRecall(){
@@ -1582,7 +1657,6 @@ document.addEventListener('keydown',e=>{
   if(view!=='study'||!session||!session.cur||editing||session.drill||session.pendingMap||document.querySelector('.zoom'))return;
   const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
   if(BYID[session.cur]&&teachable(BYID[session.cur])){if(e.key===' '||e.key==='Enter'){e.preventDefault();teachDone()}return}
-  if(!revealed&&['1','2','3'].includes(e.key)){e.preventDefault();reveal(['sure','unsure','none'][+e.key-1]);return}
   if(!revealed&&(e.key===' '||e.key==='Enter')){e.preventDefault();reveal();return}
   if(revealed&&['1','2','3','4'].includes(e.key)){e.preventDefault();answer(+e.key);return}
   if(revealed&&(e.key===' '||e.key==='Enter')&&e.target===document.body){e.preventDefault();answer(3);return}
