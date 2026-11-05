@@ -377,7 +377,7 @@ const DECAY=-W[20], FACTOR=Math.pow(0.9,1/DECAY)-1;
 const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorrow
 const ROUND_SIZE=15, ROUND_NEW=3, ROUND_REV=6; // a guided round: steps, new concepts, reviews before new material
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.14', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.15', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -573,7 +573,11 @@ function lsSave(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 const LS_S='evo-sync-url', LS_HINT='evo-hide-install', LS_PUSH='evo-push';
 function b64uBytes(s){const b=atob(s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4));return Uint8Array.from(b,c=>c.charCodeAt(0))}
 async function saveCfg(){try{if(!SYNC_URL||!('caches' in window))return;const c=await caches.open('evo-cfg');await c.put('cfg',new Response(JSON.stringify({sync:SYNC_URL}),{headers:{'Content-Type':'application/json'}}))}catch(e){}}
-let SYNC_URL=(()=>{try{return localStorage.getItem(LS_S)||'https://script.google.com/macros/s/AKfycbwGq0VAIy4YE9NWPalbeyqefTW4mzGWDF8DUts6RSU79AMyEbxkhUhW8mW1T8KNCy-o/exec'}catch(e){return 'https://script.google.com/macros/s/AKfycbwGq0VAIy4YE9NWPalbeyqefTW4mzGWDF8DUts6RSU79AMyEbxkhUhW8mW1T8KNCy-o/exec'}})();
+// Sync with the real account runs only on the real site. A copy opened anywhere else (a test, a local file, a preview)
+// starts disconnected and is refused if it tries to reach the real account, so it can never read or overwrite real progress.
+const REAL_SYNC='https://script.google.com/macros/s/AKfycbwGq0VAIy4YE9NWPalbeyqefTW4mzGWDF8DUts6RSU79AMyEbxkhUhW8mW1T8KNCy-o/exec';
+const LIVE_SITE=location.protocol==='https:'&&location.hostname==='michael41002-art.github.io'&&location.pathname.startsWith('/evo');
+let SYNC_URL=(()=>{const d=LIVE_SITE?REAL_SYNC:'';try{const s=localStorage.getItem(LS_S);return s&&(LIVE_SITE||s!==REAL_SYNC)?s:d}catch(e){return d}})();
 const timers={},busy={},again={},pend={};
 function persist(which){
   const obj=which==='progress'?P:D;obj.updatedAt=Date.now();lsSave(which==='progress'?LS_P:LS_D,obj);
@@ -581,6 +585,7 @@ function persist(which){
 }
 function remindSummary(){const dues=[];let nr=0;for(const c of CARDS){const s=P.cards[c.id];if(!s)nr++;else if(s.due)dues.push(s.due)}return {dues,newRemaining:nr}}
 async function api(body,url){
+  if(!LIVE_SITE&&(url||SYNC_URL)===REAL_SYNC)throw new Error('sync with the real account is blocked outside the live site');
   const r=await fetch(url||SYNC_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body),redirect:'follow'});
   if(!r.ok)throw new Error('http '+r.status);
   const j=await r.json();if(j&&j.error)throw new Error(j.error);return j;
@@ -786,7 +791,8 @@ function homeBanners(){
   const out=[];
   const dlx=daysToExam();
   if(dlx!=null&&dlx>=1&&dlx<=10)out.push(h('div',{class:'banner'},h('span',{},(dlx===1?'מחר המבחן':dlx+' ימים למבחן')+'. מעבר לחזרות: מבחן מסכם אחד ביום, ושליפה חופשית על ההרצאה החלשה.'),h('button',{on:{click:()=>{view='quiz';pmode='exam';exam=null;render();window.scrollTo(0,0)}}},'למבחן מסכם')));
-  if(!SYNC_URL)out.push(h('div',{class:'banner'},h('span',{},'הסנכרון עוד לא מחובר, ההתקדמות נשמרת רק במכשיר הזה.'),h('button',{on:{click:()=>{view='more';render();window.scrollTo(0,0)}}},'לחיבור')));
+  if(!LIVE_SITE)out.push(h('div',{class:'banner'},h('span',{},'עותק מקומי של האפליקציה: הוא לא מסתנכרן עם ההתקדמות האמיתית, ושום דבר כאן לא משנה אותה.')));
+  else if(!SYNC_URL)out.push(h('div',{class:'banner'},h('span',{},'הסנכרון עוד לא מחובר, ההתקדמות נשמרת רק במכשיר הזה.'),h('button',{on:{click:()=>{view='more';render();window.scrollTo(0,0)}}},'לחיבור')));
   return out;
 }
 // one-tap connect link: …/#connect=<url>
