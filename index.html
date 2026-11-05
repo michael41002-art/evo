@@ -338,6 +338,25 @@ button.primary{box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 30%,transpa
 .gpanel{cursor:pointer}
 .grew{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 /* ==== FX ==== */
+.fx-grew{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--accent);color:var(--accent-ink);padding:7px 14px;border-radius:999px;font-size:.9rem;font-weight:700;z-index:21;max-width:calc(100% - 32px);box-shadow:0 4px 14px rgba(0,0,0,.15);pointer-events:none}
+.fx-host{position:relative}
+.fx-confetti{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.fx-confetti i{display:none}
+@media (prefers-reduced-motion:no-preference){
+  .card.fx-flip{animation:fx-flip .32s ease-out;transform-origin:50% 50%}
+  @keyframes fx-flip{0%{transform:perspective(900px) rotateX(10deg) scale(.985);opacity:.75}100%{transform:none;opacity:1}}
+  .card.fx-settle{animation:fx-settle .3s ease-out}
+  @keyframes fx-settle{0%{transform:translateY(8px);opacity:.6}100%{transform:none;opacity:1}}
+  .card.fx-soft{animation:fx-soft .35s ease-out}
+  @keyframes fx-soft{0%{opacity:.55}100%{opacity:1}}
+  .progress i.fx-pulse{animation:fx-pulse .45s ease-out}
+  @keyframes fx-pulse{0%{filter:brightness(1)}35%{filter:brightness(1.35);box-shadow:0 0 8px var(--accent)}100%{filter:brightness(1)}}
+  .fx-grew{animation:fx-grew 2.6s ease both}
+  @keyframes fx-grew{0%{opacity:0;transform:translate(-50%,-10px) scale(.9)}10%{opacity:1;transform:translate(-50%,0) scale(1.04)}16%{transform:translate(-50%,0) scale(1)}85%{opacity:1}100%{opacity:0;transform:translate(-50%,-6px)}}
+  .fx-confetti i{display:block;position:absolute;top:-8px;width:8px;height:8px;border-radius:2px;opacity:0;animation:fx-fall 1.3s cubic-bezier(.25,.6,.45,1) forwards}
+  .fx-confetti i:nth-child(3n){border-radius:50%;width:6px;height:6px}
+  @keyframes fx-fall{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--dx),260px) rotate(var(--rot))}}
+}
 /* ==== /FX ==== */
 /* ==== EX:match ==== */
 /* ==== /EX:match ==== */
@@ -1702,7 +1721,67 @@ function renderBrowse(){
 // step() after a lesson card, conceptGrew(names) when concepts reached seedling/tree, roundEnd(session) on the round summary,
 // settings() returns a settings row (or null) shown under "הגדרות ואיך זה עובד".
 // Keep every method safe to call at any time (no throws), and quiet when the user turned sound/vibration off.
-const fx={reveal(){},grade(g){},exResult(ok){},step(){},conceptGrew(names){},roundEnd(s){},settings(){return null}};
+// Most calls happen just before render() replaces the DOM, so visual effects run on the next frame (later()).
+const fx=(()=>{
+  let ac=null,bus=null;
+  const on=()=>{try{return !(P&&P.settings&&P.settings.fx===false)}catch(e){return true}};
+  const ctx=()=>{
+    if(ac){if(ac.state==='suspended')ac.resume().catch(()=>{});return ac}
+    const A=window.AudioContext||window.webkitAudioContext;if(!A)return null;
+    ac=new A();bus=ac.createGain();bus.gain.value=0.16;bus.connect(ac.destination);return ac};
+  // one soft note: quick attack, exponential fade
+  const tone=(freq,at,dur,vol,type)=>{const c=ctx();if(!c)return;const t=c.currentTime+0.01+(at||0),d=dur||0.18;
+    const o=c.createOscillator(),g=c.createGain();o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.5,t+0.012);g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g);g.connect(bus);o.start(t);o.stop(t+d+0.05)};
+  const glide=(f1,f2,dur,vol)=>{const c=ctx();if(!c)return;const t=c.currentTime+0.01;
+    const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g);g.connect(bus);o.start(t);o.stop(t+dur+0.05)};
+  const snd=f=>{try{f()}catch(e){}};
+  const buzz=p=>{try{if(navigator.vibrate)navigator.vibrate(p)}catch(e){}};
+  const calm=()=>{try{return matchMedia('(prefers-reduced-motion: reduce)').matches}catch(e){return false}};
+  const later=f=>{try{(window.requestAnimationFrame||setTimeout)(()=>{try{f()}catch(e){}})}catch(e){}};
+  // restart a CSS animation class on an element
+  const kick=(el,cls)=>{if(!el)return;el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls);
+    el.addEventListener('animationend',()=>el.classList.remove(cls),{once:true})};
+  const q=s=>document.querySelector('#app '+s);
+  const safe=f=>(...a)=>{if(!on())return;try{f(...a)}catch(e){}};
+  const N={C4:261.63,E4:329.63,G4:392,C5:523.25,D5:587.33,E5:659.25,G5:783.99,C6:1046.5,E6:1318.5};
+  return {
+    reveal:safe(()=>{snd(()=>tone(N.E5,0,0.12,0.25,'triangle'));buzz(8);later(()=>kick(q('.card'),'fx-flip'))}),
+    grade:safe(g=>{
+      snd(()=>{
+        if(g===1){tone(N.E4,0,0.22,0.3);tone(N.C4,0.09,0.3,0.25)}
+        else if(g===2){tone(N.C5,0,0.14,0.3);tone(N.D5,0.07,0.18,0.28)}
+        else if(g===3){tone(N.C5,0,0.12,0.3);tone(N.E5,0.07,0.14,0.3);tone(N.G5,0.14,0.2,0.28)}
+        else if(g===4){tone(N.E5,0,0.1,0.3,'triangle');tone(N.G5,0.06,0.12,0.3,'triangle');tone(N.C6,0.12,0.26,0.3,'triangle')}});
+      buzz(g===4?[8,30,8]:g===1?12:10);
+      later(()=>kick(q('.card'),g===1?'fx-soft':'fx-settle'))}),
+    exResult:safe(ok=>{
+      if(ok){snd(()=>{tone(N.G5,0,0.12,0.3,'triangle');tone(N.C6,0.08,0.24,0.28,'triangle')});buzz([10,40,10])}
+      else{snd(()=>glide(N.G4,N.E4,0.28,0.22));buzz(14)}}),
+    step:safe(()=>{snd(()=>tone(N.G5,0,0.08,0.12));later(()=>kick(q('.stepbar .progress i')||q('.progress i'),'fx-pulse'))}),
+    conceptGrew:safe(names=>{
+      const list=(names||[]).map(String).filter(Boolean);if(!list.length)return;
+      snd(()=>{tone(N.C6,0.25,0.3,0.18,'triangle');tone(N.E6,0.33,0.4,0.15,'triangle')});buzz([6,50,6]);
+      later(()=>{const b=document.createElement('div');b.className='fx-grew';b.setAttribute('role','status');
+        b.textContent='🌱 צמח: '+list.slice(0,3).join(' · ')+(list.length>3?' ועוד '+(list.length-3):'');
+        document.body.append(b);setTimeout(()=>b.remove(),2600)})}),
+    roundEnd:safe(()=>{
+      snd(()=>[N.C5,N.E5,N.G5,N.C6].forEach((f,i)=>tone(f,i*0.09,0.35,0.24,'triangle')));buzz([12,60,12,60,20]);
+      if(calm())return;
+      later(()=>{const d=q('.done');if(!d)return;const box=document.createElement('div');box.className='fx-confetti';box.setAttribute('aria-hidden','true');
+        const cols=['var(--accent)','var(--good)','var(--easy)','var(--hard)'];
+        for(let i=0;i<28;i++){const p=document.createElement('i');
+          p.style.cssText=`left:${(4+Math.random()*92).toFixed(1)}%;background:${cols[i%cols.length]};animation-delay:${(Math.random()*0.35).toFixed(2)}s;--dx:${(Math.random()*60-30).toFixed(0)}px;--rot:${(Math.random()*540-270).toFixed(0)}deg`;
+          box.append(p)}
+        d.classList.add('fx-host');d.append(box);setTimeout(()=>box.remove(),1600)})}),
+    settings(){try{const S=P.settings;
+      return h('label',{for:'fxOn'},'צלילים ורטט',h('input',{type:'checkbox',id:'fxOn',checked:S.fx!==false,on:{change:e=>{S.fx=e.target.checked;persist('progress');
+        if(S.fx){snd(()=>{tone(N.C5,0,0.1,0.25);tone(N.G5,0.07,0.16,0.25)});buzz(10)}}}}))}catch(e){return null}}
+  };
+})();
 // ==== /FX ====
 
 // ==== EX:match ==== (exercise: match terms to definitions)
