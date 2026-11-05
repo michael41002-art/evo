@@ -340,6 +340,18 @@ button.primary{box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 30%,transpa
 /* ==== FX ==== */
 /* ==== /FX ==== */
 /* ==== EX:match ==== */
+.mt-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:12px}
+.mt-col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.mt-h{font-size:.78rem;color:var(--muted);font-weight:700}
+.mt-item{text-align:start;line-height:1.4;padding:10px 12px;overflow-wrap:anywhere;min-height:44px}
+.mt-col:first-child .mt-item{font-weight:700}
+.mt-item.mt-sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.mt-item.mt-ok,.mt-item.mt-ok:disabled{opacity:1;border-color:var(--good);color:var(--good);background:color-mix(in srgb,var(--good) 12%,var(--surface))}
+.mt-item.mt-bad{border-color:var(--again);color:var(--again);background:color-mix(in srgb,var(--again) 14%,var(--surface));animation:mt-shake .3s}
+@keyframes mt-shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.mt-done{margin-top:12px;font-weight:700;color:var(--good)}
+@media (max-width:560px){.mt-grid{grid-template-columns:1fr}.mt-col+.mt-col{margin-top:6px}}
+@media (prefers-reduced-motion:reduce){.mt-item.mt-bad{animation:none}}
 /* ==== /EX:match ==== */
 /* ==== EX:tf ==== */
 /* ==== /EX:tf ==== */
@@ -1706,6 +1718,44 @@ const fx={reveal(){},grade(g){},exResult(ok){},step(){},conceptGrew(names){},rou
 // ==== /FX ====
 
 // ==== EX:match ==== (exercise: match terms to definitions)
+EX.push({kind:'match',name:'התאמה',why:'מחברים כל מושג להגדרה שלו',
+  make(){
+    const norm=s=>plain(String(s||'')).replace(/[^\p{L}\p{N}\s]/gu,' ').replace(/\s+/g,' ').trim().toLowerCase();
+    const words=s=>new Set(norm(s).split(' ').filter(w=>w.length>1));
+    const near=(a,b)=>{const A=norm(a),B=norm(b);if(!A||!B||A===B||A.includes(B)||B.includes(A))return true;
+      const x=words(a),y=words(b);if(!x.size||!y.size)return false;let c=0;for(const w of x)if(y.has(w))c++;return c/Math.min(x.size,y.size)>=.7};
+    const pick=[];
+    for(const t of shuffle(learnedTerms())){if(pick.length>=5)break;
+      if(pick.some(p=>norm(p.term)===norm(t.term)||near(p.def,t.def)))continue;pick.push(t)}
+    if(pick.length<4)return null;
+    const pairs=pick.map((t,i)=>({i,term:t.term,def:t.def,ids:t.ids}));
+    return {pairs,order:shuffle(pairs.map(p=>p.i)),text:pairs.map(p=>p.term+' '+p.def).join(' ')};
+  },
+  view(item,done){
+    const P_=item.pairs,st={sel:null,matched:new Set(),bad:null,mistakes:0,missed:new Set(),sent:false};
+    const root=h('div',{class:'stack'});
+    const pick=(side,i)=>{if(st.bad||st.matched.has(i))return;
+      if(!st.sel||st.sel.side===side){st.sel=(st.sel&&st.sel.side===side&&st.sel.i===i)?null:{side,i};draw(side,i);return}
+      const t=side==='t'?i:st.sel.i,d=side==='d'?i:st.sel.i;
+      if(t===d){st.matched.add(t);st.sel=null;draw()}
+      else{st.mistakes++;for(const id of P_[t].ids)st.missed.add(id);st.bad={t,d};st.sel=null;draw();
+        setTimeout(()=>{st.bad=null;draw()},650)}};
+    const btn=(side,i,label)=>{const on=st.matched.has(i),sel=st.sel&&st.sel.side===side&&st.sel.i===i,bad=st.bad&&st.bad[side]===i;
+      return h('button',{type:'button',class:'mt-item'+(on?' mt-ok':'')+(sel?' mt-sel':'')+(bad?' mt-bad':''),'data-side':side,'data-i':String(i),
+        'aria-pressed':sel?'true':'false',disabled:on,on:{click:()=>pick(side,i)}},label)};
+    const draw=(fs,fi)=>{const all=st.matched.size===P_.length;
+      root.replaceChildren(h('article',{class:'card'},
+        h('div',{class:'meta'},h('span',{},'תרגיל · התאמה'),h('span',{},st.matched.size+'/'+P_.length)),
+        h('div',{class:'ask'},'בחר מושג ואז את ההגדרה שלו (או להפך).'),
+        h('div',{class:'mt-grid'},
+          h('div',{class:'mt-col'},h('div',{class:'mt-h'},'מושגים'),...P_.map(p=>btn('t',p.i,p.term))),
+          h('div',{class:'mt-col'},h('div',{class:'mt-h'},'הגדרות'),...item.order.map(i=>btn('d',i,P_[i].def)))),
+        all?h('div',{class:'mt-done'},'התאמת הכול · '+(st.mistakes===0?'בלי טעויות':st.mistakes===1?'טעות אחת':st.mistakes+' טעויות')):null),
+        all?h('div',{class:'dock'},h('div',{class:'dockin'},h('button',{class:'primary reveal',on:{click:()=>{if(st.sent)return;st.sent=true;done(st.mistakes<=1,[...st.missed])}}},'המשך'))):null);
+      if(fs){const b=root.querySelector(`.mt-item[data-side="${fs}"][data-i="${fi}"]`);if(b)b.focus()}
+      else if(all){const b=root.querySelector('.dock button');if(b)b.focus()}};
+    draw();return root;
+  }});
 // ==== /EX:match ====
 
 // ==== EX:tf ==== (exercise: quick true / false statements)
