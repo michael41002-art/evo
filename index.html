@@ -392,6 +392,11 @@ button.primary{box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 30%,transpa
 .tf .tf-list li.ok .tf-mark{color:var(--good)} .tf .tf-list li.no .tf-mark{color:var(--again)}
 /* ==== /EX:tf ==== */
 /* ==== EX:image ==== */
+.exi{padding-bottom:84px}
+.exi .exi-fig img{width:100%;max-height:min(46vh,380px)}
+.exi-res{font-weight:700;font-size:1rem}
+.exi-res.good{color:var(--good)}
+.exi-res.bad{color:var(--again)}
 /* ==== /EX:image ==== */
 </style>
 </head>
@@ -1913,6 +1918,49 @@ EX.push({kind:'tf',name:'נכון או לא',why:'החלטות מהירות: ה�
 // ==== /EX:tf ====
 
 // ==== EX:image ==== (exercise: what does this slide figure show?)
+// One learned slide figure, "which concept does it show?", 4 options from other learned terms (images first, same lecture first).
+// The caption is hidden until the answer (it often names the concept); caption / explanation are shown only if they use taught concepts.
+const exImgOk=t=>!!t&&t.length<=70&&!t.endsWith('…');
+// termOf() drops a leading quote mark ("תיאוריה" במדע → תיאוריה" במדע); put it back when the question had it
+const exImgTerm=(term,nid)=>{term=(term||'').trim();const n=NBYID[nid];return n&&!term.startsWith('"')&&(n.f||'').includes('"'+term)?'"'+term:term};
+EX.push({kind:'image',name:'מה רואים כאן?',why:'מזהים מושג מתוך איור מהשקפים',
+  make(){
+    const imgs=learnedImages().filter(x=>exImgOk(x.term));if(!imgs.length)return null;
+    const pool=[];const seen=new Set();
+    const add=(term,t,img,nid)=>{const k=exImgTerm(term,nid);if(!exImgOk(k)||seen.has(k))return;seen.add(k);pool.push({term:k,t,img})};
+    for(const x of imgs)add(x.term,x.n.t,1,x.id);
+    for(const x of learnedTerms())add(x.term,x.t,0,x.id);
+    for(const pick of shuffle(imgs)){
+      const answer=exImgTerm(pick.term,pick.id),others=pool.filter(o=>o.term!==answer);if(others.length<3)continue;
+      const rank=o=>(o.t===pick.n.t?0:2)+(o.img?0:1); // same lecture first, then images before plain terms
+      const wrong=shuffle(others).sort((a,b)=>rank(a)-rank(b)).slice(0,3).map(o=>o.term);
+      const opts=shuffle([answer,...wrong]);
+      const cap=pick.cap&&textReady(pick.cap)?pick.cap:'',e=pick.n.e&&textReady(pick.n.e)?pick.n.e:'';
+      const ask='איזה מושג או תופעה האיור הזה ממחיש?';
+      return {src:pick.src,cap,e,answer,opts,t:pick.n.t,ids:pick.ids,ask,picked:null,
+        text:[ask,...opts,cap,e].filter(Boolean).join(' ')};
+    }
+    return null;
+  },
+  view(item,done){
+    const root=h('div',{class:'stack exi'});let sent=false;
+    const draw=()=>{
+      const z=item,ok=z.picked===z.answer;
+      const img=h('img',{src:z.src,loading:'lazy',alt:z.picked?(z.cap||'איור מהשקפים'):'איור מהשקפים, נסה לזהות מה הוא מראה',
+        on:{click:()=>zoomImg(z.src,z.picked?z.cap:'')}});
+      const card=h('article',{class:'card'},
+        h('div',{class:'meta'},h('span',{},lecName(z.t))),
+        h('figure',{class:'exi-fig'},img,h('figcaption',{},z.picked&&z.cap?z.cap+' · הקש להגדלה':'הקש להגדלה')),
+        h('div',{class:'ask'},z.ask),
+        h('div',{class:'opts'},...z.opts.map(o=>h('button',{class:z.picked?(o===z.answer?'right':o===z.picked?'wrong':''):'',disabled:!!z.picked,
+          on:{click:()=>{if(z.picked)return;z.picked=o;draw()}}},o))),
+        z.picked?h('div',{class:'exi-res '+(ok?'good':'bad')},ok?'נכון!':'לא בדיוק. התשובה: '+z.answer):null,
+        z.picked&&z.e?h('div',{class:'note'},h('b',{},'הסבר'),z.e):null);
+      root.replaceChildren(...[card,z.picked?h('div',{class:'dock'},h('div',{class:'dockin'},
+        h('button',{class:'primary reveal',on:{click:()=>{if(sent)return;sent=true;done(ok,ok?[]:z.ids)}}},'המשך'))):null].filter(Boolean));
+    };
+    draw();return root;
+  }});
 // ==== /EX:image ====
 
 document.addEventListener('keydown',e=>{
