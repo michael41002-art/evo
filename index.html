@@ -337,6 +337,14 @@ button.primary{box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 30%,transpa
 .garden i.mature{background:var(--accent)}
 .gpanel{cursor:pointer}
 .grew{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+/* ==== FX ==== */
+/* ==== /FX ==== */
+/* ==== EX:match ==== */
+/* ==== /EX:match ==== */
+/* ==== EX:tf ==== */
+/* ==== /EX:tf ==== */
+/* ==== EX:image ==== */
+/* ==== /EX:image ==== */
 </style>
 </head>
 <body>
@@ -376,6 +384,7 @@ const W=[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.7
 const DECAY=-W[20], FACTOR=Math.pow(0.9,1/DECAY)-1;
 const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorrow
 const ROUND_SIZE=15, ROUND_NEW=3, ROUND_REV=6; // a guided round: steps, new concepts, reviews before new material
+const EX_EVERY=4, EX_MAX=3; // a game exercise about every 4 steps, at most 3 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
 const APP_VERSION='1.15', NTFY_TOPIC='evo-vrthhej25epj';
 
@@ -540,7 +549,7 @@ function teachDone(){
   const nid=BYID[id].nid;const ids=[id,...(NCARDS[nid]||[]).filter(x=>x!==id&&isNew(x)&&BYID[x].k!=='rev')];
   ids.forEach((x,i)=>{P.cards[x]={q:'learn',step:0,reps:0,lapses:0,due:now+(1+2*i)*MIN,taught:today()}});
   lg.n+=ids.length;session.nNew+=ids.length;session.newQueue=session.newQueue.filter(x=>!ids.includes(x));
-  session.step++;session.roundNew++;if(!session.taught.includes(nid))session.taught.push(nid);
+  session.step++;session.roundNew++;if(!session.taught.includes(nid))session.taught.push(nid);fx.step();
   undoStack.push({id,ids,prev:null,prevLog,day:today(),wasNew:true});if(undoStack.length>20)undoStack.shift();
   persist('progress');nextCard();
 }
@@ -930,6 +939,9 @@ function nextCard(){
   let pick=null;
   if(learnDue.length)pick=learnDue[0];
   else{
+    // a game exercise from learned material every few steps (see the EX regions at the end of the script)
+    if((session.exN||0)<EX_MAX&&session.step>=2&&session.step-(session.exAt||0)>=EX_EVERY&&session.size-session.step>=2){const x=pickEx();
+      if(x){session.ex=x;session.exN=(session.exN||0)+1;session.exAt=session.step;(session.exKinds=session.exKinds||[]).push(x.def.kind);session.cur=null;resetCardUI();render();window.scrollTo(0,0);return}}
     // one question you got wrong before, once its concepts were learned
     if(!session.mcqUsed&&session.step>=3){const due=mcqDue();if(due.length){session.mcqUsed=true;session.mcq=mcqItem(shuffle(due)[0]);session.cur=null;render();window.scrollTo(0,0);return}}
     const left=session.size-session.step;
@@ -952,7 +964,28 @@ function finishRound(){
     session.recall={nid,text:'',shown:false};render();window.scrollTo(0,0);return}
   endRound();
 }
-function endRound(){session.recall=null;session.mcq=null;session.roundDone=true;session.cur=null;persist('progress');render();window.scrollTo(0,0)}
+function endRound(){session.recall=null;session.mcq=null;session.ex=null;session.roundDone=true;session.cur=null;persist('progress');render();window.scrollTo(0,0);fx.roundEnd(session)}
+// ---------- game exercises: framework ----------
+// An exercise type is {kind, name, why, make(), view(item, done)} pushed to EX inside its own region at the end of the script.
+// make() builds one item ONLY from learned material (use learnedNotes/learnedTerms/learnedImages) or returns null;
+// the item must carry .text = all the text it will show (the offline checker audits it for concepts not yet taught).
+// view(item, done) returns a DOM node; call done(ok, ids) once: ok = answered well, ids = card ids to bring forward when wrong.
+const EX=[];
+function learnedNotes(){return NOTES.filter(n=>noteSeen(n.id)&&textReady(noteTxt(n)))}
+function learnedTerms(){return learnedNotes().filter(n=>n.k==='qa'&&termOf(n)&&n.b&&n.b.length<=120).map(n=>({id:n.id,term:termOf(n),def:n.b,e:n.e||'',t:n.t,ids:NCARDS[n.id]||[]}))}
+function learnedImages(){return learnedNotes().filter(n=>n.img&&(IMG[n.img]||n.img.includes('/'))).map(n=>({id:n.id,src:n.img.includes('/')?n.img:'img/'+n.img+'.webp',cap:n.cap||IMG[n.img]||'',term:termOf(n)||noteName(n.id),n,ids:NCARDS[n.id]||[]}))}
+function pickEx(){for(const def of shuffle(EX.filter(e=>!(session.exKinds||[]).includes(e.kind)))){let item=null;try{item=def.make()}catch(e){item=null}if(item)return {def,item}}return null}
+function exDone(ok,ids){
+  const s=session;if(!s||!s.ex)return;const kind=s.ex.def.kind;
+  P.exl=(P.exl||[]).concat([[kind,Math.round(Date.now()/60000),ok?1:0]]);if(P.exl.length>500)P.exl=P.exl.slice(-500);
+  if(!ok&&ids&&ids.length)advance(ids);
+  s.done++;if(!ok)s.again++;s.ex=null;s.step++;fx.exResult(ok);persist('progress');nextCard();window.scrollTo(0,0);
+}
+function exView(){const x=session.ex;let node=null;try{node=x.def.view(x.item,exDone)}catch(e){node=null}
+  if(!node){session.ex=null;session.step++;setTimeout(nextCard,0);return h('div')}return h('div',{class:'stack ex ex-'+x.def.kind},node)}
+// concepts whose stage rose after an answer (sprout → seedling → tree), for the feedback layer
+function stagesOf(nid){const o={};for(const k of NDEF[nid]||[])o[k]=cStage(k);return o}
+function grewFrom(before){return Object.keys(before).filter(k=>STAGE_ORDER.indexOf(cStage(k))>STAGE_ORDER.indexOf(before[k])&&STAGE_ORDER.indexOf(cStage(k))>=3)}
 function noteName(nid){const n=NBYID[nid];if(!n)return '';const d=NDEF[nid]||[];if(d.length)return d.join(', ');const t=termOf(n);if(t)return t;const p=plain(n.f||n.x||'');return p.length>34?p.slice(0,32)+'…':p}
 function noteBody(n){return h('div',{class:'stack',style:'gap:8px'},
   n.k==='qa'?h('div',{},h('b',{},n.f),' ',n.b):h('div',{html:esc(n.x).replace(CZ,'<span class="ans">$2</span>')}),
@@ -986,11 +1019,12 @@ function recallView(){
 }
 function stepBar(){
   const s=session;let kind=null;
-  if(s.pendingMap)kind='map';else if(s.drill)kind='drill';else if(s.mcq)kind='mcq';else if(s.recall)kind='recall';
+  if(s.pendingMap)kind='map';else if(s.drill)kind='drill';else if(s.ex)kind='ex';else if(s.mcq)kind='mcq';else if(s.recall)kind='recall';
   else if(s.cur&&BYID[s.cur]){const c=BYID[s.cur],x=st(s.cur);kind=teachable(c)?'teach':!x?'first':x.q==='review'?'review':x.q==='relearn'?'relearn':'first'}
   const K={map:['פתיחת הרצאה','לפני מושגים חדשים: התמונה הגדולה של ההרצאה'],teach:['מושג חדש','קודם קוראים ומבינים. השאלה עליו תגיע בעוד כמה צעדים'],
     first:['בדיקה','נזכרים במה שלמדת לפני כמה דקות'],review:['חזרה','חומר שלמדת בעבר, כדי שלא יישכח'],relearn:['עוד פעם','משהו שהתבלבל, עכשיו מחזקים אותו'],
-    drill:['הבחנה','שני מושגים שקל לבלבל ביניהם'],mcq:['שאלה שטעית בה','בודקים שהטעות כבר תוקנה'],recall:['סיכום','שולפים בלי רמז את מה שלמדת בסבב']}[kind];
+    drill:['הבחנה','שני מושגים שקל לבלבל ביניהם'],mcq:['שאלה שטעית בה','בודקים שהטעות כבר תוקנה'],recall:['סיכום','שולפים בלי רמז את מה שלמדת בסבב'],
+    ex:s.ex?[s.ex.def.name,s.ex.def.why]:null}[kind];
   const n=Math.min(s.step+1,s.size);
   return h('div',{class:'stepbar'},h('div',{class:'sl'},h('span',{},'צעד '+n+' מתוך '+s.size),K?h('b',{},K[0]):null),
     h('div',{class:'progress'},h('i',{style:`width:${100*Math.min(s.step,s.size)/s.size}%`})),K?h('div',{class:'why'},K[1]):null);
@@ -1001,7 +1035,9 @@ function answer(g){
   const prev=P.cards[id]?JSON.parse(JSON.stringify(P.cards[id])):null;
   const lg=logToday();const prevLog=Object.assign({},lg);
   const wasNew=!prev, wasReview=prev&&prev.q==='review';
+  const stBefore=stagesOf(BYID[id].nid);
   P.cards[id]=schedule(id,g,now,false);
+  fx.grade(g);const grew=grewFrom(stBefore);if(grew.length)fx.conceptGrew(grew);
   // review history (card, minute, grade, confidence) kept for tuning the scheduler to this learner later
   P.rl=(P.rl||[]).concat([[id,Math.round(now/60000),g,conf?conf[0]:'']]);if(P.rl.length>1500)P.rl=P.rl.slice(-1500);
   lg.t++;if(wasNew)lg.n++;if(wasReview){lg.r++;if(g>1)lg.ok++}
@@ -1427,6 +1463,7 @@ function studySettings(){
       h('label',{for:'retention'},'יעד זכירה (%)',h('input',{type:'number',id:'retention',min:'75',max:'97',value:Math.round(S.retention*100),on:{change:e=>{S.retention=clamp((+e.target.value||90)/100,0.75,0.97);persist('progress');render()}}})),
       h('label',{for:'typeAnswer'},'להקליד תשובה לפני החשיפה',h('input',{type:'checkbox',id:'typeAnswer',checked:S.typeAnswer,on:{change:e=>{S.typeAnswer=e.target.checked;persist('progress')}}})),
       h('label',{for:'reverse'},'כרטיסים הפוכים (הגדרה ← מושג)',h('input',{type:'checkbox',id:'reverse',checked:S.reverse,on:{change:e=>{S.reverse=e.target.checked;persist('progress');rebuild();render()}}})),
+      fx.settings(),
       h('p',{class:'sub'},'התזמון מבוסס על FSRS, האלגוריתם של אנקי החדש. הוא מעריך לכל כרטיס כמה זמן תזכור אותו, ומחזיר אותו כשהסיכוי לזכור יורד ליעד הזכירה. יעד גבוה יותר פירושו יותר חזרות.'),
       h('p',{class:'sub'},'איך זה עובד: לוחצים "המשך ללמוד" ומקבלים סבב קצר של כ-15 צעדים. קודם חזרות, אחר כך מושגים חדשים: כל מושג חדש מוסבר לפני שנשאלים עליו, ואף פעם לא תופיע שאלה על משהו שעוד לא למדת. בסוף כל סבב יש סיכום.'),
       h('p',{class:'sub'},'בכל שאלה: נסה להיזכר, לחץ "הצג תשובה", ודרג ביושר: "שוב" = לא זכרתי, "קשה" = נזכרתי במאמץ, "טוב" = זכרתי, "קל" = מיידי. כמה דקות כל יום עדיפות על לימוד מרוכז לפני המבחן.'),
@@ -1444,6 +1481,7 @@ function renderStudy(){
   if(s.drill){app.append(h('div',{class:'study'},bar,drillView()));return}
   if(s.mcq){app.append(h('div',{class:'study'},bar,mcqStepView()));return}
   if(s.recall){app.append(h('div',{class:'study'},bar,recallView()));return}
+  if(s.ex){app.append(h('div',{class:'study'},bar,exView()));return}
   app.append(h('div',{class:'study'},bar,s.cur&&BYID[s.cur]?cardView(BYID[s.cur]):doneView()));
 }
 function doneView(){
@@ -1531,7 +1569,7 @@ function addSwipe(el){
   el.addEventListener('touchend',()=>{if(x0==null)return;const go=Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.5;x0=null;
     el.classList.remove('swiping','sw-good','sw-again');el.style.transform='';if(go)answer(dx>0?3:1)});
 }
-function reveal(cf){if(!session||!session.cur||revealed)return;revealed=true;conf=cf||null;const c=BYID[session.cur];if(P.settings.typeAnswer&&typed.trim())localCheck(c);render()}
+function reveal(cf){if(!session||!session.cur||revealed)return;revealed=true;conf=cf||null;fx.reveal();const c=BYID[session.cur];if(P.settings.typeAnswer&&typed.trim())localCheck(c);render()}
 
 function renderQuiz(){
   const modes=[['mcq','בוחן אמריקאי'],['pairs','הבחנה בין מושגים'],['recall','שליפה חופשית'],['exam','מבחן מסכם']];
@@ -1658,6 +1696,23 @@ function renderBrowse(){
   drawList();
   app.append(h('div',{class:'stack'},top,h('div',{class:'sub'},NOTES.length+' רשומות · כרטיס השלמה עם כמה הסתרות נספר כרשומה אחת'),list));
 }
+
+// ==== FX ==== (feedback layer: sounds, haptics, animations; owned by the "live feedback" work)
+// Called by the study flow: reveal() on showing an answer, grade(g) after a grade 1-4, exResult(ok) after an exercise,
+// step() after a lesson card, conceptGrew(names) when concepts reached seedling/tree, roundEnd(session) on the round summary,
+// settings() returns a settings row (or null) shown under "הגדרות ואיך זה עובד".
+// Keep every method safe to call at any time (no throws), and quiet when the user turned sound/vibration off.
+const fx={reveal(){},grade(g){},exResult(ok){},step(){},conceptGrew(names){},roundEnd(s){},settings(){return null}};
+// ==== /FX ====
+
+// ==== EX:match ==== (exercise: match terms to definitions)
+// ==== /EX:match ====
+
+// ==== EX:tf ==== (exercise: quick true / false statements)
+// ==== /EX:tf ====
+
+// ==== EX:image ==== (exercise: what does this slide figure show?)
+// ==== /EX:image ====
 
 document.addEventListener('keydown',e=>{
   if(view!=='study'||!session||!session.cur||editing||session.drill||session.pendingMap||document.querySelector('.zoom'))return;
