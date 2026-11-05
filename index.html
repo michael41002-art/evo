@@ -439,7 +439,7 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=15, ROUND_NEW=3, ROUND_REV=6; // a guided round: steps, new concepts, reviews before new material
 const EX_EVERY=4, EX_MAX=3; // a game exercise about every 4 steps, at most 3 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.15', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.16', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -1025,7 +1025,8 @@ function endRound(){session.recall=null;session.mcq=null;session.ex=null;session
 // view(item, done) returns a DOM node; call done(ok, ids) once: ok = answered well, ids = card ids to bring forward when wrong.
 const EX=[];
 function learnedNotes(){return NOTES.filter(n=>noteSeen(n.id)&&textReady(noteTxt(n)))}
-function learnedTerms(){return learnedNotes().filter(n=>n.k==='qa'&&termOf(n)&&n.b&&n.b.length<=120).map(n=>({id:n.id,term:termOf(n),def:n.b,e:n.e||'',t:n.t,ids:NCARDS[n.id]||[]}))}
+// a real term: short (up to 4 words), not a question like 'the example given in the lecture'
+function learnedTerms(){return learnedNotes().filter(n=>{const k=n.k==='qa'&&termOf(n);return k&&k.trim().split(/\s+/).length<=4&&!/^(ה?דוגמה|ה?סיבה|ה?הבדל|ה?תנאי|ה?כינוי|ה?שם)/.test(k)&&n.b&&n.b.length<=120}).map(n=>({id:n.id,term:termOf(n),def:n.b,e:n.e||'',t:n.t,ids:NCARDS[n.id]||[]}))}
 function learnedImages(){return learnedNotes().filter(n=>n.img&&(IMG[n.img]||n.img.includes('/'))).map(n=>({id:n.id,src:n.img.includes('/')?n.img:'img/'+n.img+'.webp',cap:n.cap||IMG[n.img]||'',term:termOf(n)||noteName(n.id),n,ids:NCARDS[n.id]||[]}))}
 function pickEx(){for(const def of shuffle(EX.filter(e=>!(session.exKinds||[]).includes(e.kind)))){let item=null;try{item=def.make()}catch(e){item=null}if(item)return {def,item}}return null}
 function exDone(ok,ids){
