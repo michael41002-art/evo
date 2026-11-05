@@ -439,7 +439,7 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=15, ROUND_NEW=3, ROUND_REV=6; // a guided round: steps, new concepts, reviews before new material
 const EX_EVERY=4, EX_MAX=3; // a game exercise about every 4 steps, at most 3 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.16', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.17', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -1557,15 +1557,16 @@ function doneView(){
 }
 function sessionSummary(s){
   if(!s.done)return null;
+  // the summary celebrates effort (how much you retrieved), not a success rate: a big "% without שוב" would punish honest grading
   const acc=Math.round(100*(s.done-s.again)/s.done);const mins=Math.max(1,Math.round((Date.now()-(s.t0||Date.now()))/MIN));
   const tm=forecast()[1];
   const box=h('div',{class:'summary'},
-    h('div',{class:'stat'},h('b',{},s.done),h('span',{},'תשובות · '+mins+' דק׳')),
-    h('div',{class:'stat'},h('b',{},acc+'%'),h('span',{},'נזכרת בלי "שוב"')),
+    h('div',{class:'stat'},h('b',{},s.done),h('span',{},'שליפות · '+mins+' דק׳')),
     s.mode==='srs'?h('div',{class:'stat'},h('b',{},s.nNew||0),h('span',{},'כרטיסים חדשים')):null,
     s.mode==='srs'?h('div',{class:'stat'},h('b',{},tm),h('span',{},'לחזרה מחר')):null);
   const msgs=[];
-  if(s.done>=10&&acc<70)msgs.push('אחוז ה"שוב" גבוה היום. זה בסדר בתחילת הרצאה חדשה; אם זה נמשך, כדאי להוריד את מספר הכרטיסים החדשים ביום.');
+  if(s.again)msgs.push((s.again===1?'פעם אחת':s.again+' פעמים')+' סימנת שלא זכרת. זה בדיוק מה שהופך את הלוח למדויק: הכרטיסים האלה יחזרו בקרוב.');
+  if(s.done>=10&&acc<70)msgs.push('היום היה מאתגר. זה טבעי בתחילת הרצאה חדשה; אם זה נמשך, אפשר להוריד את מספר הכרטיסים החדשים ביום בהגדרות.');
   let grow=null;
   if(s.cst){const now=conceptStages();const up=Object.keys(now).filter(k=>s.cst[k]&&STAGE_ORDER.indexOf(now[k])>STAGE_ORDER.indexOf(s.cst[k])&&STAGE_ORDER.indexOf(now[k])>=2);
     if(up.length)grow=h('div',{class:'stack',style:'gap:8px;align-items:center'},h('div',{class:'sub'},up.length===1?'מושג אחד צמח בגינה שלך היום':up.length+' מושגים צמחו בגינה שלך היום'),
@@ -1604,13 +1605,12 @@ function cardView(c){
   }
   const wrap=h('div',{class:'stack'},card);
   const dockin=h('div',{class:'dockin'});wrap.append(h('div',{class:'dock'},dockin));
-  if(revealed)addSwipe(card);
   if(!revealed)dockin.append(h('div',{class:'hintline'},'נסה להיזכר בראש, ורק אז חשוף'),
     h('button',{class:'primary reveal',id:'revealBtn',on:{click:()=>reveal()}},'הצג תשובה'));
   else{const labels=['שוב','קשה','טוב','קל'],what=['לא זכרתי','במאמץ','זכרתי','מיידי'];const sug=check&&{ok:3,part:2,no:1}[check.state];
     dockin.append(h('div',{class:'hintline'},'כמה טוב זכרת?'),
       h('div',{class:'grades'},...[1,2,3,4].map(g=>h('button',{class:'g'+g+(sug===g?' sug':''),on:{click:()=>answer(g)}},labels[g-1],h('span',{class:'what'},what[g-1]),session.mode==='srs'?h('small',{},'שוב בעוד '+previewLabel(c.id,g)):null))))}
-  dockin.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול · אפשר גם להחליק: ימינה = טוב, שמאלה = שוב':'מקש: רווח או Enter'));
+  dockin.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול':'מקש: רווח או Enter'));
   if(inp)setTimeout(()=>inp.focus(),0);
   return wrap;
 }
@@ -1785,14 +1785,13 @@ const fx=(()=>{
   const N={C4:261.63,E4:329.63,G4:392,C5:523.25,D5:587.33,E5:659.25,G5:783.99,C6:1046.5,E6:1318.5};
   return {
     reveal:safe(()=>{snd(()=>tone(N.E5,0,0.12,0.25,'triangle'));buzz(8);later(()=>kick(q('.card'),'fx-flip'))}),
+    // a self-grade gets the SAME neutral "step done" feedback whatever it is: a nicer sound for "טוב/קל" than for "שוב"
+    // would reward pressing "טוב" and make the grades (and so the schedule) less honest. Celebrate effort, not the grade.
     grade:safe(g=>{
-      snd(()=>{
-        if(g===1){tone(N.E4,0,0.22,0.3);tone(N.C4,0.09,0.3,0.25)}
-        else if(g===2){tone(N.C5,0,0.14,0.3);tone(N.D5,0.07,0.18,0.28)}
-        else if(g===3){tone(N.C5,0,0.12,0.3);tone(N.E5,0.07,0.14,0.3);tone(N.G5,0.14,0.2,0.28)}
-        else if(g===4){tone(N.E5,0,0.1,0.3,'triangle');tone(N.G5,0.06,0.12,0.3,'triangle');tone(N.C6,0.12,0.26,0.3,'triangle')}});
-      buzz(g===4?[8,30,8]:g===1?12:10);
-      later(()=>kick(q('.card'),g===1?'fx-soft':'fx-settle'))}),
+      snd(()=>{tone(N.C5,0,0.1,0.22);tone(N.G5,0.06,0.14,0.2)});
+      buzz(10);
+      later(()=>kick(q('.card'),'fx-settle'));
+      if(g===1)later(()=>toast('טוב שסימנת. הוא יחזור בקרוב, וכך הוא ייזכר בסוף'))}),
     exResult:safe(ok=>{
       if(ok){snd(()=>{tone(N.G5,0,0.12,0.3,'triangle');tone(N.C6,0.08,0.24,0.28,'triangle')});buzz([10,40,10])}
       else{snd(()=>glide(N.G4,N.E4,0.28,0.22));buzz(14)}}),
@@ -1970,7 +1969,8 @@ document.addEventListener('keydown',e=>{
   if(BYID[session.cur]&&teachable(BYID[session.cur])){if(e.key===' '||e.key==='Enter'){e.preventDefault();teachDone()}return}
   if(!revealed&&(e.key===' '||e.key==='Enter')){e.preventDefault();reveal();return}
   if(revealed&&['1','2','3','4'].includes(e.key)){e.preventDefault();answer(+e.key);return}
-  if(revealed&&(e.key===' '||e.key==='Enter')&&e.target===document.body){e.preventDefault();answer(3);return}
+  // grading is a conscious choice: space / Enter never grade (only the keys 1-4 or the buttons)
+  if(revealed&&(e.key===' '||e.key==='Enter')&&e.target===document.body){e.preventDefault();return}
   if((e.key==='u'||e.key==='U'||e.key==='ו')&&session.mode==='srs'){e.preventDefault();undo()}
 });
 window.addEventListener('pagehide',()=>{lsSave(LS_P,P);lsSave(LS_D,D);flushPending()});
