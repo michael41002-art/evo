@@ -142,6 +142,10 @@ figcaption{font-size:.82rem;color:var(--muted);text-align:center}
 .grades button{display:flex;flex-direction:column;align-items:center;padding:10px 4px;font-weight:700;background:var(--surface)}
 .grades button small{font-weight:400;font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .grades button.sug{box-shadow:0 0 0 3px var(--soft)}
+.grades button.dim{opacity:.45}
+.calib{margin-top:14px}.calib h3{margin:0 0 4px;font-size:1rem}.calib .sub{margin:0 0 8px}
+.hintline.cnote{color:var(--ink);background:var(--soft);border-radius:10px;padding:8px 10px}
+.conf.commit button{font-weight:700}
 .grades button .what{font-weight:400;font-size:.8rem}
 .hintline{font-size:.88rem;color:var(--muted);text-align:center}
 .stepbar{display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px}
@@ -598,9 +602,11 @@ function teachable(c){return session&&session.mode==='srs'&&c.k!=='rev'&&isNew(c
 function teachDone(){
   const id=session&&session.cur;if(!id||!isNew(id))return;const now=Date.now();
   const lg=logToday();const prevLog=Object.assign({},lg);
-  // taught, not yet tested: the first real question comes about a minute later
+  // taught, not yet tested: the first real question is spaced by steps, not by the clock. it waits until at least
+  // 2 other steps have passed (lesson A, review, lesson B, check A, ...); a sibling card of the same note waits 2 steps more
   const nid=BYID[id].nid;const ids=[id,...(NCARDS[nid]||[]).filter(x=>x!==id&&isNew(x)&&BYID[x].k!=='rev')];
-  ids.forEach((x,i)=>{P.cards[x]={q:'learn',step:0,reps:0,lapses:0,due:now+(1+2*i)*MIN,taught:today()}});
+  session.taughtAt=session.taughtAt||{};
+  ids.forEach((x,i)=>{P.cards[x]={q:'learn',step:0,reps:0,lapses:0,due:now+i*1000,taught:today()};session.taughtAt[x]=session.step+2*i});
   lg.n+=ids.length;session.nNew+=ids.length;session.newQueue=session.newQueue.filter(x=>!ids.includes(x));
   session.step++;session.roundNew++;if(!session.taught.includes(nid))session.taught.push(nid);fx.step();
   undoStack.push({id,ids,prev:null,prevLog,day:today(),wasNew:true});if(undoStack.length>20)undoStack.shift();
@@ -613,7 +619,7 @@ function teachView(c){
       (D.flags||{})[c.nid]?h('button',{class:'flagged',on:{click:()=>unflag(c.nid)}},'⚑ סומן'):h('button',{on:{click:()=>{flagOpen=c.nid;render()}}},'יש פה טעות')),
     flagOpen===c.nid?flagBox(c.nid):null,
     names.length?h('div',{class:'ask'},'קודם לומדים. ',h('b',{},names.join(', ')),' יופיע בשאלות הבאות, אז כדאי להבין אותו עכשיו.')
-      :h('div',{class:'ask'},'קודם לומדים: קרא והבן. בעוד דקה תישאל על זה.'),
+      :h('div',{class:'ask'},'קודם לומדים: קרא והבן. בעוד כמה צעדים תישאל על זה.'),
     c.k==='qa'?h('div',{class:'q',html:esc(q.n.f)}):h('div',{class:'q',html:esc(q.n.x).replace(CZ,'<span class="ans">$2</span>')}),
     c.k==='qa'?h('div',{class:'answer'},h('div',{class:'a'},q.answer)):null,
     q.n.L?h('div',{class:'note lesson'},h('b',{},'הסבר'),q.n.L):null,
@@ -990,7 +996,10 @@ function nextCard(){
   if(session.roundDone)return;
   if(session.step>=session.size)return finishRound();
   let pick=null;
-  if(learnDue.length)pick=learnDue[0];
+  // a card taught in this round is first asked only after 2 other steps (see teachDone), unless nothing else is left
+  const ta=session.taughtAt||{};const waiting=id=>ta[id]!=null&&session.step<ta[id]+3;
+  const ready=learnDue.filter(id=>!waiting(id));
+  if(ready.length)pick=ready[0];
   else{
     // a game exercise from learned material every few steps (see the EX regions at the end of the script)
     if((session.exN||0)<EX_MAX&&session.step>=2&&session.step-(session.exAt||0)>=EX_EVERY&&session.size-session.step>=2){const x=pickEx();
@@ -1002,6 +1011,7 @@ function nextCard(){
     if(rev.length&&session.roundRev<ROUND_REV)pick=rev[0];
     else if(canNew)pick=session.newQueue[0];
     else if(rev.length)pick=rev[0];
+    else if(learnDue.length)pick=learnDue[0];
     else if(ahead&&st(ahead).due-now<=20*MIN)pick=ahead;
     if(!pick)return finishRound()}
   // entering a new lecture: show its map first (not for a single concept brought forward from a later lecture)
@@ -1013,7 +1023,8 @@ function nextCard(){
 function finishRound(){
   session.cur=null;session.waitUntil=null;resetCardUI();
   if(!session.recallDone&&session.taught.length){session.recallDone=true;
-    const named=session.taught.filter(nid=>(NDEF[nid]||[]).length);const nid=(named.length?named:session.taught)[Math.floor(Math.random()*(named.length||session.taught.length))];
+    // the concept taught earliest in the round: the longest gap, so the recall is the hardest (and most useful) one
+    const named=session.taught.filter(nid=>(NDEF[nid]||[]).length);const nid=(named.length?named:session.taught)[0];
     session.recall={nid,text:'',shown:false};render();window.scrollTo(0,0);return}
   endRound();
 }
@@ -1063,13 +1074,23 @@ function recallView(){
     const ta=h('textarea',{dir:'auto',rows:'4',placeholder:'במילים שלך…'});ta.value=r.text;ta.addEventListener('input',()=>r.text=ta.value);setTimeout(()=>ta.focus(),0);
     return h('section',{class:'panel stack'},h('h2',{},'לפני הסיכום: שליפה בלי רמז'),
       h('p',{},'בלי להציץ: הסבר במשפט או שניים מה זה ',h('b',{},name),'.'),
-      h('p',{class:'sub'},'להיזכר בלי שום רמז הוא התרגול שהכי מחזק את הזיכרון. זה לא נבדק, זה בשבילך.'),ta,
+      h('p',{class:'sub'},'להיזכר בלי שום רמז הוא התרגול שהכי מחזק את הזיכרון. אחרי שתראה את ההסבר תסמן כמה נזכרת.'),ta,
       h('div',{class:'row'},h('button',{class:'primary',on:{click:()=>{r.shown=true;render()}}},'הצג את ההסבר'),h('button',{on:{click:endRound}},'דלג')));
   }
   return h('section',{class:'panel stack'},h('h2',{},name),
     r.text.trim()?h('div',{class:'note mine'},h('b',{},'מה שכתבת'),r.text):null,
     noteBody(n),h('p',{class:'sub'},'השווה: מה היה חסר אצלך? את זה כדאי לזכור.'),
-    h('div',{},h('button',{class:'primary',on:{click:endRound}},'לסיכום הסבב')));
+    h('div',{class:'hintline'},'נזכרתי:'),
+    h('div',{class:'conf'},...[['full','בעיקר'],['part','חלקית'],['none','לא']].map(([k,lb],i)=>h('button',{class:i?'':'primary',on:{click:()=>recallResult(r.nid,k)}},lb))));
+}
+// the end-of-round recall counts: it is kept, and a concept that was not recalled comes back soon
+function recallResult(nid,res){
+  const n=NBYID[nid];
+  P.recall=(P.recall||[]).concat([{d:today(),t:n?n.t:'',nid,r:res}]).slice(-200);
+  if(res==='none'){const ids=NCARDS[nid]||[];advance(ids);const now=Date.now();
+    for(const id of ids){const s=P.cards[id];if(s&&(s.q==='learn'||s.q==='relearn')&&s.due>now)s.due=now}
+    toast('הכרטיסים של המושג הזה יחזרו בקרוב')}
+  endRound();
 }
 function stepBar(){
   const s=session;let kind=null;
@@ -1267,12 +1288,14 @@ function drillView(){
   if(z.i>=z.items.length)return h('section',{class:'panel stack'},h('h2',{},'סיימת את ההבחנה'),h('p',{},z.ok+' מתוך '+z.items.length+' נכון.'),p.tip?h('p',{class:'sub'},p.tip):null,
     h('button',{class:'primary',on:{click:done}},'חזרה לכרטיסים'));
   const it=z.items[z.i];
+  // retrieval, not matching: the definitions and the tip appear only after a pick (as in renderPairs)
   return h('section',{class:'panel stack'},
     h('div',{class:'sub'},'המושג הזה מתבלבל בקלות עם מושג קרוב. דקה של הבחנה ביניהם תחסוך את הטעות הבאה.'),
-    tbl,h('div',{class:'sub'},'דוגמה '+(z.i+1)+' מתוך '+z.items.length+': למה זה שייך?'),
+    h('div',{class:'sub'},'דוגמה '+(z.i+1)+' מתוך '+z.items.length+': לאיזה מושג זה שייך?'),
     h('div',{class:'q',style:'font-size:1.2rem'},it[0]),
     h('div',{class:'dopts',style:`grid-template-columns:repeat(${p.terms.length},minmax(0,1fr))`},...p.terms.map((t,i)=>h('button',{class:z.picked==null?'':(i===it[1]?'right':i===z.picked?'wrong':''),disabled:z.picked!=null,
       on:{click:()=>{z.picked=i;if(i===it[1])z.ok++;render()}}},t[0]))),
+    z.picked!=null?tbl:null,z.picked!=null&&p.tip?h('div',{class:'sub'},p.tip):null,
     z.picked!=null?h('button',{class:'primary',on:{click:()=>{z.i++;z.picked=null;render()}}},z.i+1<z.items.length?'הבאה':'סיום'):
       h('button',{on:{click:done}},'דלג'));
 }
@@ -1481,6 +1504,16 @@ function renderHome(){
     h('div',{class:'stack',style:'gap:16px;margin-top:10px'},focus,h('div',{class:'stack',style:'gap:8px'},h('b',{},'מבחן'),examBody))));
   app.append(h('div',{class:'stack'},...homeBanners(),heroPanel(),gardenTeaser(),more));
 }
+// how well the commitment before the reveal matched the grade after it (last 30 days of P.rl), per confidence level
+function calibration(){
+  const cut=Math.round((Date.now()-30*DAY)/60000);const by={s:[0,0],u:[0,0],n:[0,0]};let tot=0;
+  for(const r of P.rl||[]){if(r[1]<cut||!by[r[3]])continue;by[r[3]][0]++;if(r[2]>=2)by[r[3]][1]++;tot++}
+  if(tot<10)return null;
+  const row=(k,lb)=>by[k][0]?h('div',{class:'stat'},h('b',{},Math.round(100*by[k][1]/by[k][0])+'%'),h('span',{},'כשאמרת "'+lb+'" ('+by[k][0]+')')):null;
+  return h('div',{class:'calib'},h('h3',{},'כמה מדויקת ההערכה שלך'),
+    h('p',{class:'sub'},'מתוך התשובות ב-30 הימים האחרונים: באיזה אחוז זכרת (קשה, טוב או קל), לפי מה שאמרת לפני שראית את התשובה.'),
+    h('div',{class:'stats'},row('s','יודע'),row('u','חושב ש…'),row('n','אין לי מושג')));
+}
 function renderProgress(){
   const dl=daysToExam();
   const ret=retention(),stk=streak();
@@ -1488,7 +1521,7 @@ function renderProgress(){
     h('div',{class:'stats'},
       h('div',{class:'stat'},h('b',{},(P.log[today()]?.t||0)),h('span',{},'תשובות היום')),
       h('div',{class:'stat'},h('b',{},stk+(stk===1?' יום':' ימים')),h('span',{},'רצף למידה')),
-      h('div',{class:'stat'},h('b',{},ret==null?'–':ret+'%'),h('span',{},'זכירה ב-30 יום'))));
+      h('div',{class:'stat'},h('b',{},ret==null?'–':ret+'%'),h('span',{},'זכירה ב-30 יום'))),calibration());
   const lecs=h('section',{class:'panel'},h('h2',{},'לפי הרצאה'),
     ...LECS.map(([L])=>{const s=lecStats(L);if(!s.tot)return null;const pct=x=>(100*x/s.tot)+'%';
       return h('div',{class:'lec'},h('div',{class:'lechead'},h('span',{},lecName(L),lecMap(L)?h('button',{class:'mapbtn',style:'margin-inline-start:8px',on:{click:()=>{mapL=L;mapFrom='stats';view='map';render();window.scrollTo(0,0)}}},'מפה'):null),h('span',{},(s.m+s.y)+'/'+s.tot+' נלמדו')),
@@ -1605,12 +1638,15 @@ function cardView(c){
   }
   const wrap=h('div',{class:'stack'},card);
   const dockin=h('div',{class:'dockin'});wrap.append(h('div',{class:'dock'},dockin));
-  if(!revealed)dockin.append(h('div',{class:'hintline'},'נסה להיזכר בראש, ורק אז חשוף'),
-    h('button',{class:'primary reveal',id:'revealBtn',on:{click:()=>reveal()}},'הצג תשובה'));
-  else{const labels=['שוב','קשה','טוב','קל'],what=['לא זכרתי','במאמץ','זכרתי','מיידי'];const sug=check&&{ok:3,part:2,no:1}[check.state];
+  // commit before the reveal: saying what you think you know keeps the grade after it honest (the choice is kept in P.rl)
+  if(!revealed)dockin.append(h('div',{class:'hintline'},'נסה להיזכר בראש. מה המצב?'),
+    h('div',{class:'conf commit'},...CONF.map(([cf,lb],i)=>h('button',{class:i?'':'primary',id:i?null:'revealBtn',on:{click:()=>reveal(cf)}},lb))));
+  else{const labels=['שוב','קשה','טוב','קל'],what=['לא זכרתי','במאמץ','זכרתי','מיידי'];
+    const sug=(check&&{ok:3,part:2,no:1}[check.state])||{none:1,unsure:2}[conf]||0;const dim=conf==='none'?[3,4]:[];
     dockin.append(h('div',{class:'hintline'},'כמה טוב זכרת?'),
-      h('div',{class:'grades'},...[1,2,3,4].map(g=>h('button',{class:'g'+g+(sug===g?' sug':''),on:{click:()=>answer(g)}},labels[g-1],h('span',{class:'what'},what[g-1]),session.mode==='srs'?h('small',{},'שוב בעוד '+previewLabel(c.id,g)):null))))}
-  dockin.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול':'מקש: רווח או Enter'));
+      conf==='none'?h('div',{class:'hintline cnote'},"אמרת שלא ידעת. אם זיהית את התשובה רק אחרי שראית אותה, זה 'שוב'."):null,
+      h('div',{class:'grades'},...[1,2,3,4].map(g=>h('button',{class:'g'+g+(sug===g?' sug':'')+(dim.includes(g)?' dim':''),on:{click:()=>answer(g)}},labels[g-1],h('span',{class:'what'},what[g-1]),session.mode==='srs'?h('small',{},'שוב בעוד '+previewLabel(c.id,g)):null))))}
+  dockin.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול':'מקשים: 1 יודע · 2 חושב ש… · 3 אין לי מושג'));
   if(inp)setTimeout(()=>inp.focus(),0);
   return wrap;
 }
@@ -1623,6 +1659,7 @@ function addSwipe(el){
   el.addEventListener('touchend',()=>{if(x0==null)return;const go=Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.5;x0=null;
     el.classList.remove('swiping','sw-good','sw-again');el.style.transform='';if(go)answer(dx>0?3:1)});
 }
+const CONF=[['sure','יודע'],['unsure','חושב ש…'],['none','אין לי מושג']];
 function reveal(cf){if(!session||!session.cur||revealed)return;revealed=true;conf=cf||null;fx.reveal();const c=BYID[session.cur];if(P.settings.typeAnswer&&typed.trim())localCheck(c);render()}
 
 function renderQuiz(){
@@ -1645,7 +1682,7 @@ function keyTerms(L){
 }
 function renderRecall(){
   const L=lecFilter;
-  const past=(P.recall||[]).filter(r=>r.t===L).slice(-1)[0];
+  const past=(P.recall||[]).filter(r=>r.t===L&&r.p!=null).slice(-1)[0];
   if(!recall||recall.L!==L)recall={L,text:'',res:null};
   const r=recall;
   const head=h('section',{class:'panel stack'},h('h2',{},'שליפה חופשית'),
@@ -1967,7 +2004,9 @@ document.addEventListener('keydown',e=>{
   if(view!=='study'||!session||!session.cur||editing||session.drill||session.pendingMap||document.querySelector('.zoom'))return;
   const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
   if(BYID[session.cur]&&teachable(BYID[session.cur])){if(e.key===' '||e.key==='Enter'){e.preventDefault();teachDone()}return}
-  if(!revealed&&(e.key===' '||e.key==='Enter')){e.preventDefault();reveal();return}
+  // before the reveal: 1 יודע · 2 חושב ש… · 3 אין לי מושג. space / Enter do nothing, so the commitment stays a conscious choice
+  if(!revealed&&['1','2','3'].includes(e.key)){e.preventDefault();reveal(CONF[+e.key-1][0]);return}
+  if(!revealed&&(e.key===' '||e.key==='Enter')&&e.target===document.body){e.preventDefault();return}
   if(revealed&&['1','2','3','4'].includes(e.key)){e.preventDefault();answer(+e.key);return}
   // grading is a conscious choice: space / Enter never grade (only the keys 1-4 or the buttons)
   if(revealed&&(e.key===' '||e.key==='Enter')&&e.target===document.body){e.preventDefault();return}
