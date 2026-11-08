@@ -360,7 +360,6 @@ figcaption{font-size:var(--fs-xs);color:var(--ink-2);text-align:center}
 .summary .stat b{font-size:var(--fs-2xl);line-height:1.1}
 .learned,.grew{display:flex;flex-wrap:wrap;gap:var(--s2)}
 .learned span{background:var(--surface-2);border-radius:var(--r-pill);min-height:36px;display:inline-flex;align-items:center;padding:0 var(--s3);font-size:var(--fs-sm);font-weight:600}
-.done.pause{align-items:center;text-align:center;padding-top:var(--s6)}
 
 /* ---- card list / editor / import ---- */
 .browsetop{position:sticky;top:0;z-index:3;background:var(--bg);padding-block:var(--s2)}
@@ -1071,11 +1070,13 @@ function nextCard(){
   // entering a new lecture: show its map first (not for a single concept brought forward from a later lecture)
   if(pick&&isNew(pick)&&!session.pendingMap){const L=BYID[pick].t,li=LECS.findIndex(l=>l[0]===L);
     if(lecMap(L)&&!P.maps[L]&&!session.newQueue.some(x=>x!==pick&&LECS.findIndex(l=>l[0]===BYID[x].t)<li)){session.pendingMap=L;session.cur=null;resetCardUI();render();window.scrollTo(0,0);return}}
-  session.cur=pick;session.waitUntil=(!pick&&ahead)?st(ahead).due:null;render();
+  session.cur=pick;render();
 }
 // end of a round: a short recall on one concept taught in it, then the summary
 function finishRound(){
-  session.cur=null;session.waitUntil=null;resetCardUI();
+  session.cur=null;resetCardUI();
+  // the recall is already waiting (a contrast drill on the last step came in front of it): show it, don't skip it
+  if(session.recall){render();window.scrollTo(0,0);return}
   if(!session.recallDone&&session.taught.length){session.recallDone=true;
     // the concept taught earliest in the round: the longest gap, so the recall is the hardest (and most useful) one
     const named=session.taught.filter(nid=>(NDEF[nid]||[]).length);const nid=(named.length?named:session.taught)[0];
@@ -1666,9 +1667,6 @@ function cardMenu(nid,canEdit){
 document.addEventListener('click',e=>{document.querySelectorAll('details.menu[open]').forEach(d=>{if(!d.contains(e.target))d.open=false})});
 function doneView(){
   const s=session;
-  if(s.mode==='srs'&&s.waitUntil){const mins=Math.max(1,Math.round((s.waitUntil-Date.now())/MIN));
-    clearTimeout(s.waitTimer);s.waitTimer=setTimeout(()=>{if(view==='study'&&session===s&&!s.cur)nextCard()},Math.min(60e3,s.waitUntil-Date.now()+500));
-    return h('div',{class:'done pause'},h('div',{class:'big'},'הפסקה קצרה'),h('div',{class:'sub'},'הכרטיס הבא בלמידה יחזור בעוד '+mins+' דק׳. אפשר להישאר כאן, הוא יופיע לבד.'),h('button',{on:{click:()=>{view='home';render()}}},'למסך הבית'))}
   const sum=sessionSummary(s);
   const toHome=(primary)=>h('button',{class:primary?'primary':'text',on:{click:()=>{view='home';render();window.scrollTo(0,0)}}},primary?'למסך הבית':'מספיק להיום');
   const check=h('div',{class:'check'});check.innerHTML=UI_ICON.check;
