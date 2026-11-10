@@ -490,10 +490,10 @@ const LEARN_STEPS=[1,10];
 const W=[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.796,1.4835,0.0614,0.2629,1.6483,0.6014,1.8729,0.5425,0.0912,0.0658,0.1542];
 const DECAY=-W[20], FACTOR=Math.pow(0.9,1/DECAY)-1;
 const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorrow
-const ROUND_SIZE=15, ROUND_NEW=3, ROUND_REV=6; // a guided round: steps, new concepts, reviews before new material
+const ROUND_SIZE=15, ROUND_NEW=5, ROUND_REV=3; // a guided round: steps, new concepts, reviews per round (mixed in)
 const EX_EVERY=4, EX_MAX=3; // a game exercise about every 4 steps, at most 3 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.19', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.20', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -797,9 +797,11 @@ function importText(raw){
       else if((x.type==='qa'||x.k==='qa')&&(x.front||x.f)&&(x.back||x.b)){D.added.push({id,k:'qa',f:x.front||x.f,b:x.back||x.b,e:x.extra||x.e||'',t:key,img:x.img,cap:x.cap});n++}
       else if((x.type==='cloze'||x.k==='cz')&&clozeOk(x.text||x.x||'')){D.added.push({id,k:'cz',x:x.text||x.x,e:x.extra||x.e||'',t:key,img:x.img,cap:x.cap});n++}
     }
-    let nl=0;if(Array.isArray(o.lessons)){for(const ls of o.lessons){if(!ls||!ls.m||!ls.L)continue;
+    // a lesson sets a card's long explanation (L) and, optionally, rewrites its short one (e), so explanations can be made clearer later
+    let nl=0;if(Array.isArray(o.lessons)){for(const ls of o.lessons){if(!ls||!ls.m||!(ls.L||ls.e))continue;
+      const ch={};if(ls.L)ch.L=ls.L;if(ls.e)ch.e=ls.e;
       for(const n0 of NOTES){const k=n0.k==='qa'?(n0.f||''):(n0.x||'');if(!k.startsWith(ls.m))continue;
-        const b=BASE.find(x=>x.id===n0.id);if(b)D.edits[n0.id]=Object.assign({},D.edits[n0.id]||{},{L:ls.L});else{const a=D.added.find(x=>x.id===n0.id);if(a)a.L=ls.L}nl++}}}
+        const b=BASE.find(x=>x.id===n0.id);if(b)D.edits[n0.id]=Object.assign({},D.edits[n0.id]||{},ch);else{const a=D.added.find(x=>x.id===n0.id);if(a)Object.assign(a,ch)}nl++}}}
     let nc=0;if(Array.isArray(o.concepts)){D.concepts=D.concepts||[];for(const c of o.concepts){if(!c||!c.n||!Array.isArray(c.kw))continue;const i3=D.concepts.findIndex(x=>x.n===c.n);if(i3>=0)D.concepts[i3]=c;else D.concepts.push(c);nc++}}
     let np=0;if(Array.isArray(o.pairs)){D.pairs=D.pairs||[];for(const pr of o.pairs){if(!pr||!pr.id||!Array.isArray(pr.terms)||!Array.isArray(pr.items))continue;const i2=D.pairs.findIndex(x=>x.id===pr.id);const v=Object.assign({},pr,{t:pr.t||key});if(i2>=0)D.pairs[i2]=v;else D.pairs.push(v);np++}}
     rebuild();persist('deck');lecFilter='all';
@@ -1002,7 +1004,7 @@ function startSession(chain){
   // new material lecture by lecture (understand one before mixing); reviews still come from all lectures
   const rr=LECS.flatMap(l=>byL[l[0]]||[]);
   const ordered=prereqOrder(rr.filter(id=>BYID[id].k!=='rev'||!isNew(BYID[id].nid)));
-  // a guided round: ~15 steps. reviews first, then up to 4 new concepts (each taught before it is asked), one old mistake, and a short recall at the end
+  // a guided round: ~15 steps. reviews mixed with up to 5 new concepts (each taught before it is asked), one old mistake, and a short recall at the end
   session={mode:'srs',cst:conceptStages(),newQueue:ordered.slice(0,c.newAvail),done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),cur:null,chain:!!chain,
     size:ROUND_SIZE,step:0,roundNew:0,roundRev:0,taught:[],mcqUsed:false,recallDone:false,roundDone:false};
   // a lecture's map is shown by nextCard right before its first new card, after the reviews
@@ -1061,7 +1063,9 @@ function nextCard(){
     if(!session.mcqUsed&&session.step>=3){const due=mcqDue();if(due.length){session.mcqUsed=true;session.mcq=mcqItem(shuffle(due)[0]);session.cur=null;render();window.scrollTo(0,0);return}}
     const left=session.size-session.step;
     const canNew=session.newQueue.length&&session.roundNew<ROUND_NEW&&left>=4;
-    if(rev.length&&session.roundRev<ROUND_REV)pick=rev[0];
+    // reviews and new material are mixed through the round (about R N N R N N R N), not all reviews first
+    const revTurn=rev.length&&session.roundRev<ROUND_REV&&(!canNew||session.roundRev*ROUND_NEW<=session.roundNew*ROUND_REV);
+    if(revTurn)pick=rev[0];
     else if(canNew)pick=session.newQueue[0];
     else if(rev.length)pick=rev[0];
     else if(learnDue.length)pick=learnDue[0];
@@ -1736,8 +1740,9 @@ function cardView(c){
     h('div',{class:'conf commit'},...CONF.map(([cf,lb],i)=>h('button',{class:i?'':'primary',id:i?null:'revealBtn',on:{click:()=>reveal(cf)}},lb))));
   else{const labels=['שוב','קשה','טוב','קל'],what=['לא זכרתי','במאמץ','זכרתי','מיידי'];
     const sug=(check&&{ok:3,part:2,no:1}[check.state])||{none:1,unsure:2}[conf]||0;const dim=conf==='none'?[3,4]:[];
+    // append() writes a null as the text "null", so the optional note goes in only when it exists
+    if(conf==='none')dockin.append(h('div',{class:'hintline cnote'},"אמרת שלא ידעת. אם זיהית את התשובה רק אחרי שראית אותה, זה 'שוב'."));
     dockin.append(
-      conf==='none'?h('div',{class:'hintline cnote'},"אמרת שלא ידעת. אם זיהית את התשובה רק אחרי שראית אותה, זה 'שוב'."):null,
       h('div',{class:'grades',role:'group','aria-label':'כמה טוב זכרת?'},...[1,2,3,4].map(g=>{const iv=session.mode==='srs'?previewLabel(c.id,g):null;
         return h('button',{class:'g'+g+(sug===g?' sug':'')+(dim.includes(g)?' dim':''),title:what[g-1]+(iv?' · חוזר בעוד '+iv:''),'aria-label':labels[g-1]+': '+what[g-1]+(iv?', חוזר בעוד '+iv:''),on:{click:()=>answer(g)}},labels[g-1],h('small',{},iv||what[g-1]))})))}
   dockin.append(h('div',{class:'keys'},revealed?'מקשים: 1 שוב · 2 קשה · 3 טוב · 4 קל · U ביטול':'מקשים: 1 יודע · 2 חושב ש… · 3 אין לי מושג'));
