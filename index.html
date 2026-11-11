@@ -495,7 +495,7 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=12, ROUND_NEW=5, ROUND_REV=2;
 const EX_EVERY=4, EX_MAX=1; // a game exercise after at least 4 steps, at most 1 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.25', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.26', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -773,7 +773,7 @@ async function flush(which){
       if(crs===COURSE){if(which==='progress'){P=normP(r.data);lsSave(LS_P,P)}else{D=normD(r.data);lsSave(LS_D,D)}
         rebuild();if(view!=='study')render()}
     }else{
-      await cloud.put(which,key,data);seen[key]=data.updatedAt;
+      await cloud.put(which,key,data);seen[key]=data.updatedAt;if(which==='progress')sendProfile();
       if(scriptWrite()){const body={action:'put',which:key,data};if(which==='progress')body.summary=remindSummary();api(body).catch(()=>{})}
     }
     syncState='synced';
@@ -803,7 +803,7 @@ async function pull(){
     const rd=await cloud.get('deck','deck'+sfx(),D.updatedAt||0,!own);if(crs!==COURSE||cloud!==CLOUD)return;
     if(rd)seen['deck'+sfx()]=rd.updatedAt;
     if(rd&&rd.data){D=normD(rd.data);lsSave(LS_D,D);changed=true}else if(own&&D.updatedAt&&(!rd||rd.updatedAt<D.updatedAt))flush('deck');
-    syncState='synced';if(changed){rebuild();if(view!=='study')render()}
+    syncState='synced';sendProfile();if(changed){rebuild();if(view!=='study')render()}
   }catch(e){syncState='error'}
   updateSync();
 }
@@ -820,7 +820,9 @@ function fbCloud(fs,db,uid){
       return {updatedAt:m.updatedAt,data:JSON.parse(str)}},
     async put(kind,key,obj){const str=JSON.stringify(obj),parts=[];for(let i=0;i<str.length;i+=CH)parts.push(str.slice(i,i+CH));
       const r=ref(kind,key),b=fs.writeBatch(db);b.set(r,{updatedAt:obj.updatedAt||0,n:parts.length,s:parts[0]||''});
-      for(let i=1;i<parts.length;i++)b.set(fs.doc(db,r.path+'/parts/'+i),{s:parts[i]});await b.commit()}
+      for(let i=1;i<parts.length;i++)b.set(fs.doc(db,r.path+'/parts/'+i),{s:parts[i]});await b.commit()},
+    async profile(obj){await fs.setDoc(fs.doc(db,'users',uid),obj)},
+    async users(){const s=await fs.getDocs(fs.collection(db,'users'));return s.docs.map(d=>Object.assign({uid:d.id},d.data()))}
   };
 }
 async function fbLoad(){
@@ -834,7 +836,7 @@ async function fbRole(f){ // only the owner may read this path; everyone else is
 }
 // the one place that connects a person to a cloud store (the tests call it with a made-up store)
 function signedIn(user,role,cloud){
-  USER=user;ROLE=role;CLOUD=role==='owner'||role==='member'?cloud:null;for(const k in seen)delete seen[k];
+  USER=user;ROLE=role;CLOUD=role==='owner'||role==='member'?cloud:null;for(const k in seen)delete seen[k];lastProf=0;
   if(!CLOUD){syncState='local';return}
   let prev=null;try{prev=localStorage.getItem(LS_UID)}catch(e){}
   if(prev&&prev!==user.uid){ // someone else's progress is on this device: it must not go into this account
@@ -843,13 +845,23 @@ function signedIn(user,role,cloud){
   }
   try{localStorage.setItem(LS_UID,user.uid)}catch(e){}
 }
+// v1.26: each learner leaves a small profile (name, address, last visit, how much they learned), which only the owner can list
+// in the admin page. It is refreshed after a sync, at most once in 10 minutes.
+let lastProf=0;
+function profileStats(){const out={};
+  for(const c of COURSES){const Pp=c.id===COURSE?P:normP(lsLoad('evo-srs-progress-v1'+sfxOf(c.id))||blankProgress());const d=Pp.log[today()]||{};
+    out[c.id]={k:Object.keys(Pp.cards).length,t:(d.n||0)+(d.r||0),d:Object.keys(Pp.log).length}}
+  return out}
+function sendProfile(force){
+  if(!CLOUD||!CLOUD.profile||!USER)return;const now=Date.now();if(!force&&now-lastProf<600000)return;lastProf=now;
+  CLOUD.profile({name:USER.name||'',email:USER.email||'',last:now,ver:APP_VERSION,c:profileStats()}).catch(()=>{})}
 function signedOut(){USER=null;ROLE='local';CLOUD=null;syncState='local';for(const k in seen)delete seen[k]}
 async function onAuth(u){
   if(!u){signedOut();return}
   const email=(u.email||'').toLowerCase();let role=null;
   try{role=await fbRole(FB);try{localStorage.setItem(LS_ROLE,JSON.stringify({uid:u.uid,role}))}catch(e){}}
   catch(e){try{const c=JSON.parse(localStorage.getItem(LS_ROLE)||'null');if(c&&c.uid===u.uid)role=c.role}catch(e2){}}
-  signedIn({uid:u.uid,email,sure:!!role},role||'member',fbCloud(FB.fs,FB.db,u.uid));
+  signedIn({uid:u.uid,email,name:u.displayName||'',sure:!!role},role||'member',fbCloud(FB.fs,FB.db,u.uid));
 }
 let booting=null;
 function cloudBoot(){ // resolves once it is known who is signed in (or that nobody is)
@@ -966,6 +978,7 @@ function renderMore(){
   let share=null;
   if(!cloudOn()&&!USER)sync.append(h('p',{},LIVE_SITE?'ההתקדמות שמורה במכשיר הזה.':'עותק מקומי: ההתקדמות שמורה רק כאן.'));
   else if(!USER)sync.append(h('p',{},'היכנס עם חשבון Google כדי לשמור את ההתקדמות שלך בענן, לסנכרן בין הטלפון למחשב ולקבל את כל חומר הקורסים.'),
+    h('p',{class:'sub'},'מנהל האפליקציה רואה את השם והכתובת של החשבון, מתי נכנסת לאחרונה וכמה כרטיסים למדת. את התשובות שלך הוא לא רואה.'),
     h('div',{},h('button',{class:'primary',on:{click:signIn}},'כניסה עם Google')));
   else{
     const off=h('button',{on:{click:async()=>{off.disabled=true;await signOutNow();render()}}},'יציאה מהחשבון');
@@ -976,6 +989,7 @@ function renderMore(){
       const link=location.origin+location.pathname;
       share=h('section',{class:'panel stack'},h('h2',{},'שיתוף האפליקציה'),
         h('p',{},'כל מי שיש לו את הקישור יכול להיכנס עם חשבון Google ולקבל את כל החומר. לכל אחד התקדמות משלו, ואף אחד לא רואה או משנה את שלך. רק אתה יכול להוסיף ולערוך כרטיסים.'),
+        h('div',{},h('button',{class:'primary',on:{click:()=>{view='admin';render();window.scrollTo(0,0)}}},'עמוד ניהול: מי משתמש וכמה')),
         h('div',{},h('button',{on:{click:async()=>{try{await navigator.clipboard.writeText(link);toast('הקישור הועתק')}catch(e){prompt('העתק את הקישור:',link)}}}},'העתק קישור לשיתוף')));
     }
   }
@@ -1662,10 +1676,38 @@ function render(){
     else app.append(h('div',{class:'appbar top'},h('h1',{class:'title'},TAB_TITLE[view]||''),courseSwitch()));
     document.body.append(bottomNav());
   }
-  ({home:renderHome,study:renderStudy,quiz:renderQuiz,stats:renderProgress,browse:renderBrowse,more:renderMore,map:renderMap}[view])();
+  ({home:renderHome,study:renderStudy,quiz:renderQuiz,stats:renderProgress,browse:renderBrowse,more:renderMore,map:renderMap,admin:renderAdmin}[view])();
   updateSync();if(view==='browse'||view==='home'||view==='stats')window.scrollTo(0,y);
 }
-const TAB_TITLE={quiz:'תרגול',stats:'התקדמות',browse:'כרטיסים',more:'הגדרות',map:'מפת ההרצאה'};
+const TAB_TITLE={quiz:'תרגול',stats:'התקדמות',browse:'כרטיסים',more:'הגדרות',map:'מפת ההרצאה',admin:'ניהול'};
+// ---------- admin page (owner only): who uses the app and how much ----------
+function agoText(ts){if(!ts)return 'לא ידוע';const m=Math.floor((Date.now()-ts)/60000);
+  if(m<2)return 'עכשיו';if(m<60)return 'לפני '+m+' דקות';const hh=Math.floor(m/60);if(hh<24)return hh===1?'לפני שעה':'לפני '+hh+' שעות';
+  const d=Math.floor(hh/24);return d===1?'אתמול':'לפני '+d+' ימים'}
+function renderAdmin(){
+  const back=h('button',{on:{click:()=>{view='more';render();window.scrollTo(0,0)}}},'חזרה להגדרות');
+  if(ROLE!=='owner'||!CLOUD){app.append(h('div',{class:'stack'},h('section',{class:'panel stack'},h('p',{},'העמוד הזה זמין רק לבעל האפליקציה, כשהוא מחובר לחשבון.'),h('div',{},back))));return}
+  const box=h('div',{class:'stack'},h('p',{class:'sub'},'טוען…'));
+  const totals={};for(const c of COURSES)totals[c.id]=cardIdsFor(c.id==='evo'?EVO_BASE:[],c.id==='evo'?BASE_LECTURES:[],c.id===COURSE?D:normD(lsLoad('evo-srs-deck-v1'+sfxOf(c.id))||blankDeck()),true).length;
+  const load=async()=>{
+    try{const us=(await CLOUD.users()).sort((a,b)=>(b.last||0)-(a.last||0));const now=Date.now();
+      if(view!=='admin')return;box.innerHTML='';
+      const act=n=>us.filter(u=>now-(u.last||0)<n*DAY).length;
+      box.append(h('section',{class:'panel stack'},h('h2',{},'סיכום'),
+        h('p',{},h('b',{},String(us.length)),' משתמשים רשומים · ',h('b',{},String(act(1))),' פעילים ביממה האחרונה · ',h('b',{},String(act(7))),' פעילים בשבוע האחרון'),
+        h('p',{class:'sub'},'המספרים מתעדכנים כשמשתמש מסנכרן, לכל היותר פעם ב-10 דקות. מי שנכנס לפני גרסה 1.26 יופיע אחרי הביקור הבא שלו.')));
+      const list=h('section',{class:'panel stack'},h('h2',{},'משתמשים ('+us.length+')'));
+      if(!us.length)list.append(h('p',{class:'sub'},'עוד אין משתמשים רשומים.'));
+      for(const u of us){const cs=u.c||{};
+        list.append(h('div',{class:'item'},
+          h('div',{class:'line'},h('span',{class:'txt'},h('b',{},u.name||'ללא שם'),u.uid===USER.uid?' (אתה)':''),h('span',{class:'tag'},agoText(u.last))),
+          h('div',{class:'sub',dir:'ltr',style:'text-align:right'},u.email||''),
+          ...COURSES.map(c=>{const s=cs[c.id]||{};return h('div',{class:'sub'},(c.short||c.name)+': למד '+(s.k||0)+' מתוך '+totals[c.id]+' כרטיסים · '+(s.t||0)+' תשובות היום · '+(s.d||0)+' ימי לימוד')})))}
+      box.append(list);
+    }catch(e){box.innerHTML='';box.append(h('section',{class:'panel stack'},h('p',{class:'warn'},'הרשימה לא נטענה. בדוק את החיבור ונסה שוב.')))}};
+  app.append(h('div',{class:'stack'},h('div',{class:'row'},back,h('button',{on:{click:()=>{box.innerHTML='';box.append(h('p',{class:'sub'},'טוען…'));load()}}},'רענן')),box));
+  load();
+}
 function courseSwitch(){if(COURSES.length<2)return null;
   return h('div',{class:'cchips',role:'group','aria-label':'קורס'},...COURSES.map(c=>h('button',{class:'cchip','aria-pressed':String(COURSE===c.id),title:c.name,on:{click:()=>switchCourse(c.id)}},h('i',{style:'background:'+(COURSE_COLOR[c.id]||'#888')}),c.tiny||c.short)))}
 function switchCourse(id){
