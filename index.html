@@ -490,10 +490,12 @@ const LEARN_STEPS=[1,10];
 const W=[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.796,1.4835,0.0614,0.2629,1.6483,0.6014,1.8729,0.5425,0.0912,0.0658,0.1542];
 const DECAY=-W[20], FACTOR=Math.pow(0.9,1/DECAY)-1;
 const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorrow
-const ROUND_SIZE=15, ROUND_NEW=5, ROUND_REV=3; // a guided round: steps, new concepts, reviews per round (mixed in)
-const EX_EVERY=4, EX_MAX=3; // a game exercise about every 4 steps, at most 3 per round
+// a guided round: steps, new concepts, reviews per round (mixed in). v1.24 (user: rounds felt tiring): 15 -> 12 steps,
+// 3 -> 2 reviews, 3 -> 1 exercise, recall once a day, so a round is shorter but still brings 5 new concepts
+const ROUND_SIZE=12, ROUND_NEW=5, ROUND_REV=2;
+const EX_EVERY=4, EX_MAX=1; // a game exercise after at least 4 steps, at most 1 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.23', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.24', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -695,8 +697,10 @@ function teachView(c){
       :h('div',{class:'ask'},lead+'בעוד כמה צעדים תישאל על זה שוב.'),
     c.k==='qa'?h('div',{class:'q',html:esc(q.n.f)}):h('div',{class:'q',html:esc(q.n.x).replace(CZ,'<span class="ans">$2</span>')}),
     c.k==='qa'?h('div',{class:'answer'},h('div',{class:'a'},q.answer)):null,
-    q.n.L?h('div',{class:'note lesson'},h('b',{},'הסבר'),q.n.L):null,
+    // the long explanation is open when the learner did not know; after "יודע" it starts folded (v1.24: less reading)
+    q.n.L&&triedCf!=='sure'?h('div',{class:'note lesson'},h('b',{},'הסבר'),q.n.L):null,
     q.extra?h('div',{class:'note'},h('b',{},q.n.L?'הנקודה לזכור':'הסבר'),q.extra):null,
+    q.n.L&&triedCf==='sure'?h('details',{class:'note lesson'},h('summary',{},'ההסבר המלא'),q.n.L):null,
     (()=>{const rel=(NUSE[c.nid]||[]).filter(k=>(CDEF[k]||[]).some(noteSeen));return rel.length?h('div',{class:'sub'},'נשען על מה שכבר למדת: '+rel.join(', ')):null})());
   if(q.n.img&&(IMG[q.n.img]||q.n.img.includes('/'))){const src=q.n.img.includes('/')?q.n.img:'img/'+q.n.img+'.webp';const cap=q.n.cap||IMG[q.n.img]||'';
     card.append(h('figure',{},h('img',{src,alt:cap||'איור מהשקפים',loading:'lazy',on:{click:()=>zoomImg(src,cap)}}),h('figcaption',{},(cap?cap+' · ':'')+'הקש להגדלה')))}
@@ -1104,7 +1108,9 @@ function finishRound(){
   session.cur=null;resetCardUI();
   // the recall is already waiting (a contrast drill on the last step came in front of it): show it, don't skip it
   if(session.recall){render();window.scrollTo(0,0);return}
-  if(!session.recallDone&&session.taught.length){session.recallDone=true;
+  // once a day: the first round of the day ends with it, later rounds go straight to the summary
+  const recalledToday=(P.recall||[]).some(r=>r.d===today()&&r.nid);
+  if(!session.recallDone&&!recalledToday&&session.taught.length){session.recallDone=true;
     // the concept taught earliest in the round: the longest gap, so the recall is the hardest (and most useful) one
     const named=session.taught.filter(nid=>(NDEF[nid]||[]).length);const nid=(named.length?named:session.taught)[0];
     session.recall={nid,text:'',shown:false};render();window.scrollTo(0,0);return}
@@ -2042,13 +2048,13 @@ EX.push({kind:'match',name:'התאמה',why:'מחברים כל מושג להגד
 // ==== /EX:match ====
 
 // ==== EX:tf ==== (exercise: quick true / false statements)
-// Five statements "<term>: <definition>". About half carry the term's own definition, the rest a definition of another
+// Three statements "<term>: <definition>" (five until v1.24, shortened so a round is less tiring). About half carry the term's own definition, the rest a definition of another
 // learned term (from the same lecture when possible, so it is a real confusion). Answer each with נכון / לא נכון.
 EX.push({kind:'tf',name:'נכון או לא',why:'החלטות מהירות: האם ההגדרה מתאימה למושג?',
   make(){
     // the statements are about terms that need practice (exTerms); a wrong definition may come from any learned term
-    const terms=learnedTerms().filter(a=>a.term&&a.def),subs=exTerms().filter(a=>a.term&&a.def);if(terms.length<4||subs.length<4)return null;
-    const N=5,nTrue=Math.random()<.5?2:3;const truth=shuffle([...Array(N)].map((_,i)=>i<nTrue));
+    const terms=learnedTerms().filter(a=>a.term&&a.def),subs=exTerms().filter(a=>a.term&&a.def);if(terms.length<4||subs.length<3)return null;
+    const N=3,nTrue=Math.random()<.5?1:2;const truth=shuffle([...Array(N)].map((_,i)=>i<nTrue));
     const used=new Set(),st=[];
     for(let i=0;st.length<N&&i<N*3;i++){
       const a=subs[i%subs.length];let want=truth[st.length];
@@ -2059,7 +2065,7 @@ EX.push({kind:'tf',name:'נכון או לא',why:'החלטות מהירות: ה�
         const same=others.filter(b=>b.t===a.t);from=shuffle(same.length?same:others)[0];def=from.def}
       if(used.has(key(def)))continue;used.add(key(def));
       st.push({term:a.term,def,ok:want,real:a.def,nid:a.id,ids:a.ids.concat(want?[]:from.ids)})}
-    if(st.length<4)return null;
+    if(st.length<N)return null;
     return {st,nids:[...new Set(st.map(s=>s.nid))],text:st.map(s=>s.term+': '+s.def+(s.ok?'':' '+s.term+' = '+s.real)).join(' \n ')};
   },
   view(item,done){
