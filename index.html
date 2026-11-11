@@ -493,7 +493,7 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=15, ROUND_NEW=5, ROUND_REV=3; // a guided round: steps, new concepts, reviews per round (mixed in)
 const EX_EVERY=4, EX_MAX=3; // a game exercise about every 4 steps, at most 3 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.21', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.22', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -741,7 +741,7 @@ async function pull(){
 function updateSync(){const s=document.getElementById('sync');if(!s)return;s.dataset.s=syncState;
   s.textContent={local:'שמור רק במכשיר',loading:'מסנכרן…',synced:'מסונכרן',error:'אין חיבור כרגע'}[syncState];
   s.title={local:'ההתקדמות נשמרת רק במכשיר הזה',loading:'מסנכרן…',synced:'ההתקדמות מסונכרנת',error:'אין חיבור כרגע. ההתקדמות נשמרת במכשיר ותסונכרן אחר כך'}[syncState]}
-function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],rl:p.rl||[],exams:p.exams||[],maps:p.maps||{},mcqS:p.mcqS||{},settings:Object.assign(b.settings,p.settings||{})}}
+function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],rl:p.rl||[],exams:p.exams||[],maps:p.maps||{},mcqS:p.mcqS||{},exl:p.exl||[],exT:p.exT||{},settings:Object.assign(b.settings,p.settings||{})}}
 function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d.added||[],lectures:d.lectures||[],mcq:d.mcq||[],pairs:d.pairs||[],flags:d.flags||{},concepts:d.concepts||[]}}
 async function initStore(){
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);rebuild();render();
@@ -1098,10 +1098,25 @@ function learnedNotes(){return NOTES.filter(n=>noteSeen(n.id)&&textReady(noteTxt
 // a real term: short (up to 4 words), not a question like 'the example given in the lecture'
 function learnedTerms(){return learnedNotes().filter(n=>{const k=n.k==='qa'&&termOf(n);return k&&k.trim().split(/\s+/).length<=4&&!/^(ה?דוגמה|ה?סיבה|ה?הבדל|ה?תנאי|ה?כינוי|ה?שם)/.test(k)&&n.b&&n.b.length<=120}).map(n=>({id:n.id,term:termOf(n),def:n.b,e:n.e||'',t:n.t,ids:NCARDS[n.id]||[]}))}
 function learnedImages(){return learnedNotes().filter(n=>n.img&&(IMG[n.img]||n.img.includes('/'))).map(n=>({id:n.id,src:n.img.includes('/')?n.img:'img/'+n.img+'.webp',cap:n.cap||IMG[n.img]||'',term:termOf(n)||noteName(n.id),n,ids:NCARDS[n.id]||[]}))}
+// Exercises go to what still needs practice. A term you already know well (every card of it in review, EX_KNOWN_IVL+ days apart,
+// never forgotten) is left out; one shown in an exercise in the last EX_REST days rests; the rest come weakest first.
+// With too few such terms an exercise is skipped, rather than showing the same few known terms again.
+const EX_REST=3, EX_KNOWN_IVL=7;
+function exState(nid){const ids=NCARDS[nid]||[];let ivl=Infinity,lapses=0,all=ids.length>0;
+  for(const id of ids){const s=st(id);if(!s){all=false;continue}if(s.q!=='review')all=false;ivl=Math.min(ivl,s.ivl||0);lapses+=s.lapses||0}
+  const last=P.exT&&P.exT[nid];
+  return {known:all&&ivl>=EX_KNOWN_IVL&&!lapses,rest:!!last&&addDays(last,EX_REST)>today(),need:(ivl===Infinity?0:ivl)-lapses*5}}
+function exNeedy(list,idOf){const sc=new Map();
+  const out=shuffle(list).filter(x=>{const s=exState(idOf(x));sc.set(x,s.need);return !s.known&&!s.rest});
+  return out.sort((a,b)=>sc.get(a)-sc.get(b))}
+function exTerms(){return exNeedy(learnedTerms(),t=>t.id)}
 function pickEx(){for(const def of shuffle(EX.filter(e=>!(session.exKinds||[]).includes(e.kind)))){let item=null;try{item=def.make()}catch(e){item=null}if(item)return {def,item}}return null}
 function exDone(ok,ids){
   const s=session;if(!s||!s.ex)return;const kind=s.ex.def.kind;
   P.exl=(P.exl||[]).concat([[kind,Math.round(Date.now()/60000),ok?1:0]]);if(P.exl.length>500)P.exl=P.exl.slice(-500);
+  // the terms this exercise asked about rest for EX_REST days (see exState); old entries are dropped
+  const t=today();P.exT=P.exT||{};for(const n of s.ex.item.nids||[])P.exT[n]=t;
+  for(const n of Object.keys(P.exT))if(addDays(P.exT[n],EX_REST)<=t)delete P.exT[n];
   if(!ok&&ids&&ids.length)advance(ids);
   s.done++;if(!ok)s.again++;s.ex=null;s.step++;fx.exResult(ok);persist('progress');nextCard();window.scrollTo(0,0);
 }
@@ -1970,11 +1985,11 @@ EX.push({kind:'match',name:'התאמה',why:'מחברים כל מושג להגד
     const near=(a,b)=>{const A=norm(a),B=norm(b);if(!A||!B||A===B||A.includes(B)||B.includes(A))return true;
       const x=words(a),y=words(b);if(!x.size||!y.size)return false;let c=0;for(const w of x)if(y.has(w))c++;return c/Math.min(x.size,y.size)>=.7};
     const pick=[];
-    for(const t of shuffle(learnedTerms())){if(pick.length>=5)break;
+    for(const t of exTerms()){if(pick.length>=5)break;
       if(pick.some(p=>norm(p.term)===norm(t.term)||near(p.def,t.def)))continue;pick.push(t)}
     if(pick.length<4)return null;
     const pairs=pick.map((t,i)=>({i,term:t.term,def:t.def,ids:t.ids}));
-    return {pairs,order:shuffle(pairs.map(p=>p.i)),text:pairs.map(p=>p.term+' '+p.def).join(' ')};
+    return {pairs,order:shuffle(pairs.map(p=>p.i)),nids:pick.map(t=>t.id),text:pairs.map(p=>p.term+' '+p.def).join(' ')};
   },
   view(item,done){
     const P_=item.pairs,st={sel:null,matched:new Set(),bad:null,mistakes:0,missed:new Set(),sent:false};
@@ -2008,8 +2023,9 @@ EX.push({kind:'match',name:'התאמה',why:'מחברים כל מושג להגד
 // learned term (from the same lecture when possible, so it is a real confusion). Answer each with נכון / לא נכון.
 EX.push({kind:'tf',name:'נכון או לא',why:'החלטות מהירות: האם ההגדרה מתאימה למושג?',
   make(){
-    const terms=learnedTerms().filter(a=>a.term&&a.def);if(terms.length<4)return null;
-    const N=5,nTrue=Math.random()<.5?2:3;const subs=shuffle(terms);const truth=shuffle([...Array(N)].map((_,i)=>i<nTrue));
+    // the statements are about terms that need practice (exTerms); a wrong definition may come from any learned term
+    const terms=learnedTerms().filter(a=>a.term&&a.def),subs=exTerms().filter(a=>a.term&&a.def);if(terms.length<4||subs.length<4)return null;
+    const N=5,nTrue=Math.random()<.5?2:3;const truth=shuffle([...Array(N)].map((_,i)=>i<nTrue));
     const used=new Set(),st=[];
     for(let i=0;st.length<N&&i<N*3;i++){
       const a=subs[i%subs.length];let want=truth[st.length];
@@ -2019,9 +2035,9 @@ EX.push({kind:'tf',name:'נכון או לא',why:'החלטות מהירות: ה�
       if(!want){const others=terms.filter(b=>b!==a&&b.def!==a.def&&b.term!==a.term&&!used.has(key(b.def)));if(!others.length)continue;
         const same=others.filter(b=>b.t===a.t);from=shuffle(same.length?same:others)[0];def=from.def}
       if(used.has(key(def)))continue;used.add(key(def));
-      st.push({term:a.term,def,ok:want,real:a.def,ids:a.ids.concat(want?[]:from.ids)})}
+      st.push({term:a.term,def,ok:want,real:a.def,nid:a.id,ids:a.ids.concat(want?[]:from.ids)})}
     if(st.length<4)return null;
-    return {st,text:st.map(s=>s.term+': '+s.def+(s.ok?'':' '+s.term+' = '+s.real)).join(' \n ')};
+    return {st,nids:[...new Set(st.map(s=>s.nid))],text:st.map(s=>s.term+': '+s.def+(s.ok?'':' '+s.term+' = '+s.real)).join(' \n ')};
   },
   view(item,done){
     const st=item.st,N=st.length,ans=[],pick=[];let i=0,fin=false;const root=h('div',{class:'tf'});
@@ -2074,14 +2090,15 @@ EX.push({kind:'image',name:'מה רואים כאן?',why:'מזהים מושג מ
     const add=(term,t,img,nid)=>{const k=exImgTerm(term,nid);if(!exImgOk(k)||seen.has(k))return;seen.add(k);pool.push({term:k,t,img})};
     for(const x of imgs)add(x.term,x.n.t,1,x.id);
     for(const x of learnedTerms())add(x.term,x.t,0,x.id);
-    for(const pick of shuffle(imgs)){
+    // the figure asked about is one that needs practice (see exNeedy); the wrong options may be any learned term
+    for(const pick of exNeedy(imgs,x=>x.id)){
       const answer=exImgTerm(pick.term,pick.id),others=pool.filter(o=>o.term!==answer);if(others.length<3)continue;
       const rank=o=>(o.t===pick.n.t?0:2)+(o.img?0:1); // same lecture first, then images before plain terms
       const wrong=shuffle(others).sort((a,b)=>rank(a)-rank(b)).slice(0,3).map(o=>o.term);
       const opts=shuffle([answer,...wrong]);
       const cap=pick.cap&&textReady(pick.cap)?pick.cap:'',e=pick.n.e&&textReady(pick.n.e)?pick.n.e:'';
       const ask='איזה מושג או תופעה האיור הזה ממחיש?';
-      return {src:pick.src,cap,e,answer,opts,t:pick.n.t,ids:pick.ids,ask,picked:null,
+      return {src:pick.src,cap,e,answer,opts,t:pick.n.t,ids:pick.ids,nids:[pick.id],ask,picked:null,
         text:[ask,...opts,cap,e].filter(Boolean).join(' ')};
     }
     return null;
