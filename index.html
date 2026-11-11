@@ -493,7 +493,7 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=15, ROUND_NEW=5, ROUND_REV=3; // a guided round: steps, new concepts, reviews per round (mixed in)
 const EX_EVERY=4, EX_MAX=3; // a game exercise about every 4 steps, at most 3 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.20', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.21', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -1289,7 +1289,8 @@ function buildGenQuiz(count){
   const qs=shuffle(pool).map(item=>{
     const same=item.kind==='def'?defs.map(d=>termOf(d)):seenCz.map(x=>clozeAnswer(NBYID[x.nid].x,x.n)).filter(a=>a.length<=40);
     const lecOf=item.kind==='def'?defs.filter(d=>d.t===item.n.t).map(d=>termOf(d)):seenCz.filter(x=>x.t===item.n.t).map(x=>clozeAnswer(NBYID[x.nid].x,x.n));
-    const ok=a=>norm(a)!==norm(item.answer)&&!norm(item.answer).includes(norm(a))&&!norm(a).includes(norm(item.answer));
+    // a wrong option may not mention a concept that was not taught yet either (e.g. a basics card added after its users were learned)
+    const ok=a=>norm(a)!==norm(item.answer)&&!norm(item.answer).includes(norm(a))&&!norm(a).includes(norm(item.answer))&&textReady(a);
     const byLen=arr=>[...new Set(arr)].filter(ok).sort((a,b)=>Math.abs(a.length-item.answer.length)-Math.abs(b.length-item.answer.length));
     let distract=shuffle(byLen(lecOf).slice(0,6)).slice(0,3);
     if(distract.length<3)distract=distract.concat(byLen(same).filter(a=>!distract.includes(a)).slice(0,3-distract.length));
