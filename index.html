@@ -493,11 +493,12 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=15, ROUND_NEW=5, ROUND_REV=3; // a guided round: steps, new concepts, reviews per round (mixed in)
 const EX_EVERY=4, EX_MAX=3; // a game exercise about every 4 steps, at most 3 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.22', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.23', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
 let view='home', lecFilter='all', session=null, quiz=null, revealed=false, typed='', undoStack=[], editing=null;
+let tried=null, triedCf=null; // a new card the learner already tried to answer (and how sure they were), before its explanation
 let check=null, conf=null, pmode='mcq', recall=null, exam=null;
 let browseQ='';
 let NOTES=[], NBYID={}, CARDS=[], BYID={}, LECS=[];
@@ -649,28 +650,49 @@ function pairReady(p){
   const names=p.terms.map(t=>t[0]+' '+t[1]).join(' ');
   return (p.kw||[]).filter(w=>names.includes(w)).every(hit)&&seen.filter(n=>(p.kw||[]).some(w=>noteTxt(n).includes(w))).length>=2;
 }
-// every new card is taught (read and understood) before it is ever asked
+// every new card is tried first, then taught (v1.23, at the user's request): the question comes first, so the first
+// meeting is active (a guess before the explanation helps it stick), and the explanation follows on the same step.
 function teachable(c){return session&&session.mode==='srs'&&c.k!=='rev'&&isNew(c.id)}
-function teachDone(){
+const TEACH_GAP=3; // other steps between learning a new card and its first real question in the round
+// knew=true: the learner said they knew it before seeing the answer, and confirmed it after: no in-round question,
+// the card goes straight to review (graded "easy"). Its sibling cards (other blanks of the same note) are still learned.
+function teachDone(knew){
   const id=session&&session.cur;if(!id||!isNew(id))return;const now=Date.now();
   const lg=logToday();const prevLog=Object.assign({},lg);
   // taught, not yet tested: the first real question is spaced by steps, not by the clock. it waits until at least
-  // 2 other steps have passed (lesson A, review, lesson B, check A, ...); a sibling card of the same note waits 2 steps more
+  // TEACH_GAP other steps have passed; a sibling card of the same note waits 2 steps more
   const nid=BYID[id].nid;const ids=[id,...(NCARDS[nid]||[]).filter(x=>x!==id&&isNew(x)&&BYID[x].k!=='rev')];
   session.taughtAt=session.taughtAt||{};
-  ids.forEach((x,i)=>{P.cards[x]={q:'learn',step:0,reps:0,lapses:0,due:now+i*1000,taught:today()};session.taughtAt[x]=session.step+2*i});
+  ids.forEach((x,i)=>{
+    if(knew===true&&x===id){P.cards[x]=Object.assign(schedule(x,4,now,false),{taught:today()});P.rl=(P.rl||[]).concat([[x,Math.round(now/60000),4,'s']]);return}
+    P.cards[x]={q:'learn',step:0,reps:0,lapses:0,due:now+i*1000,taught:today()};session.taughtAt[x]=session.step+2*i});
   lg.n+=ids.length;session.nNew+=ids.length;session.newQueue=session.newQueue.filter(x=>!ids.includes(x));
   session.step++;session.roundNew++;if(!session.taught.includes(nid))session.taught.push(nid);fx.step();
   undoStack.push({id,ids,prev:null,prevLog,day:today(),wasNew:true});if(undoStack.length>20)undoStack.shift();
   persist('progress');nextCard();
 }
+// first meeting with a new card: the question alone. "how sure are you" commits to an answer before the explanation
+function pretestView(c){
+  const q=cardQA(c);
+  const go=cf=>{tried=c.id;triedCf=cf;fx.reveal();render();window.scrollTo(0,0)};
+  const card=h('article',{class:'card'},
+    h('div',{class:'meta'},h('span',{},lecName(c.t)),h('span',{},'חדש'),(D.flags||{})[c.nid]?h('span',{class:'flagged'},'⚑ סומן לבדיקה'):null),
+    h('div',{class:'ask'},'משהו חדש. נסה לענות לפני ההסבר: גם ניחוש עוזר לזכור.'),
+    h('div',{class:'q',html:q.front}));
+  const dockin=h('div',{class:'dockin'},h('div',{class:'hintline'},'נסה בראש. מה המצב?'),
+    h('div',{class:'conf commit'},...CONF.map(([cf,lb],i)=>h('button',{class:i?'':'primary',on:{click:()=>go(cf)}},lb))),
+    h('div',{class:'keys'},'מקשים: 1 יודע · 2 חושב ש… · 3 אין לי מושג'));
+  return h('div',{class:'stack'},card,h('div',{class:'dock'},dockin));
+}
 function teachView(c){
+  if(tried!==c.id)return pretestView(c);
   const q=cardQA(c);const names=NDEF[c.nid]||[];
+  const lead=triedCf==='sure'?'בדוק אם צדקת. ':'הנה התשובה וההסבר. ';
   const card=h('article',{class:'card teach'},
     h('div',{class:'meta'},h('span',{},lecName(c.t)),(D.flags||{})[c.nid]?h('span',{class:'flagged'},'⚑ סומן לבדיקה'):null),
     flagOpen===c.nid?flagBox(c.nid):null,
-    names.length?h('div',{class:'ask'},'קודם לומדים. ',h('b',{},names.join(', ')),' יופיע בשאלות הבאות, אז כדאי להבין אותו עכשיו.')
-      :h('div',{class:'ask'},'קודם לומדים: קרא והבן. בעוד כמה צעדים תישאל על זה.'),
+    names.length?h('div',{class:'ask'},lead,h('b',{},names.join(', ')),' יופיע בשאלות הבאות, אז כדאי להבין אותו עכשיו.')
+      :h('div',{class:'ask'},lead+'בעוד כמה צעדים תישאל על זה שוב.'),
     c.k==='qa'?h('div',{class:'q',html:esc(q.n.f)}):h('div',{class:'q',html:esc(q.n.x).replace(CZ,'<span class="ans">$2</span>')}),
     c.k==='qa'?h('div',{class:'answer'},h('div',{class:'a'},q.answer)):null,
     q.n.L?h('div',{class:'note lesson'},h('b',{},'הסבר'),q.n.L):null,
@@ -678,7 +700,8 @@ function teachView(c){
     (()=>{const rel=(NUSE[c.nid]||[]).filter(k=>(CDEF[k]||[]).some(noteSeen));return rel.length?h('div',{class:'sub'},'נשען על מה שכבר למדת: '+rel.join(', ')):null})());
   if(q.n.img&&(IMG[q.n.img]||q.n.img.includes('/'))){const src=q.n.img.includes('/')?q.n.img:'img/'+q.n.img+'.webp';const cap=q.n.cap||IMG[q.n.img]||'';
     card.append(h('figure',{},h('img',{src,alt:cap||'איור מהשקפים',loading:'lazy',on:{click:()=>zoomImg(src,cap)}}),h('figcaption',{},(cap?cap+' · ':'')+'הקש להגדלה')))}
-  const dockin=h('div',{class:'dockin'},h('button',{class:'primary reveal',id:'teachBtn',on:{click:teachDone}},'הבנתי, אפשר לשאול אותי'),
+  const dockin=h('div',{class:'dockin'},h('button',{class:'primary reveal',id:'teachBtn',on:{click:()=>teachDone()}},'הבנתי, המשך'),
+    triedCf==='sure'?h('button',{class:'knew',on:{click:()=>teachDone(true)}},'ידעתי את זה, אין צורך לשאול שוב היום'):null,
     h('div',{class:'keys'},'מקש: רווח או Enter'));
   return h('div',{class:'stack'},card,h('div',{class:'dock'},dockin));
 }
@@ -1037,7 +1060,7 @@ function startCram(scope){
   session={mode:'cram',queue:ids,done:0,again:0,nNew:0,ill:0,t0:Date.now(),drilled:new Set(),total:ids.length,cur:null};view='study';nextCard();
 }
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
-function resetCardUI(){revealed=false;typed='';check=null;editing=null;conf=null}
+function resetCardUI(){revealed=false;typed='';check=null;editing=null;conf=null;tried=null;triedCf=null}
 function nextCard(){
   resetCardUI();
   if(session.mode==='cram'){session.cur=session.queue[0]||null;render();return}
@@ -1052,7 +1075,7 @@ function nextCard(){
   if(session.step>=session.size)return finishRound();
   let pick=null;
   // a card taught in this round is first asked only after 2 other steps (see teachDone), unless nothing else is left
-  const ta=session.taughtAt||{};const waiting=id=>ta[id]!=null&&session.step<ta[id]+3;
+  const ta=session.taughtAt||{};const waiting=id=>ta[id]!=null&&session.step<ta[id]+TEACH_GAP+1;
   const ready=learnDue.filter(id=>!waiting(id));
   if(ready.length)pick=ready[0];
   else{
@@ -1062,7 +1085,7 @@ function nextCard(){
     // one question you got wrong before, once its concepts were learned
     if(!session.mcqUsed&&session.step>=3){const due=mcqDue();if(due.length){session.mcqUsed=true;session.mcq=mcqItem(shuffle(due)[0]);session.cur=null;render();window.scrollTo(0,0);return}}
     const left=session.size-session.step;
-    const canNew=session.newQueue.length&&session.roundNew<ROUND_NEW&&left>=4;
+    const canNew=session.newQueue.length&&session.roundNew<ROUND_NEW&&left>=TEACH_GAP+2;
     // reviews and new material are mixed through the round (about R N N R N N R N), not all reviews first
     const revTurn=rev.length&&session.roundRev<ROUND_REV&&(!canNew||session.roundRev*ROUND_NEW<=session.roundNew*ROUND_REV);
     if(revTurn)pick=rev[0];
@@ -2127,7 +2150,10 @@ EX.push({kind:'image',name:'מה רואים כאן?',why:'מזהים מושג מ
 document.addEventListener('keydown',e=>{
   if(view!=='study'||!session||!session.cur||editing||session.drill||session.pendingMap||document.querySelector('.zoom'))return;
   const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
-  if(BYID[session.cur]&&teachable(BYID[session.cur])){if(e.key===' '||e.key==='Enter'){e.preventDefault();teachDone()}return}
+  if(BYID[session.cur]&&teachable(BYID[session.cur])){
+    // a new card: first the try (1 יודע · 2 חושב ש… · 3 אין לי מושג), then space / Enter after its explanation
+    if(tried!==session.cur){if(['1','2','3'].includes(e.key)){e.preventDefault();tried=session.cur;triedCf=CONF[+e.key-1][0];fx.reveal();render()}return}
+    if(e.key===' '||e.key==='Enter'){e.preventDefault();teachDone()}return}
   // before the reveal: 1 יודע · 2 חושב ש… · 3 אין לי מושג. space / Enter do nothing, so the commitment stays a conscious choice
   if(!revealed&&['1','2','3'].includes(e.key)){e.preventDefault();reveal(CONF[+e.key-1][0]);return}
   if(!revealed&&(e.key===' '||e.key==='Enter')&&e.target===document.body){e.preventDefault();return}
