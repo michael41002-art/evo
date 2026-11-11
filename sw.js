@@ -1,5 +1,5 @@
 // Offline cache: the app shell and images load from the cache, then refresh in the background.
-const CACHE='evo-v26';
+const CACHE='evo-v27';
 const SYNC_DEFAULT='https://script.google.com/macros/s/AKfycbwGq0VAIy4YE9NWPalbeyqefTW4mzGWDF8DUts6RSU79AMyEbxkhUhW8mW1T8KNCy-o/exec';
 const SHELL=['./','index.html','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/apple-touch-icon.png',
  'img/allopoly.webp','img/arctic.webp','img/autopoly.webp','img/cichlids.webp','img/crickets.webp','img/damselfly.webp','img/darwin-tree.webp',
@@ -10,7 +10,8 @@ self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.
 self.addEventListener('fetch',e=>{
   const u=new URL(e.request.url);
   if(e.request.method!=='GET')return;
-  if(u.hostname.endsWith('script.google.com')||u.hostname.endsWith('googleusercontent.com'))return; // sync: always network
+  // sync, sign-in and the database always go to the network; only the app itself, fonts and the sign-in library are cached
+  if(u.origin!==location.origin&&!/^(fonts.googleapis.com|fonts.gstatic.com|www.gstatic.com)$/.test(u.hostname))return;
   e.respondWith(caches.open(CACHE).then(async c=>{
     const hit=await c.match(e.request,{ignoreSearch:u.origin===location.origin});
     const net=fetch(e.request,{cache:'no-cache'}).then(r=>{if(r&&(r.ok||r.type==='opaque'))c.put(e.request,r.clone());return r}).catch(()=>hit);

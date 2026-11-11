@@ -495,7 +495,7 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=12, ROUND_NEW=5, ROUND_REV=2;
 const EX_EVERY=4, EX_MAX=1; // a game exercise after at least 4 steps, at most 1 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.24', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.25', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -539,12 +539,19 @@ function courseCounts(id){
   return countsFor(Pp,cardIdsFor(id==='evo'?EVO_BASE:[],id==='evo'?BASE_LECTURES:[],Dx,Pp.settings.reverse!==false));
 }
 async function pullOthers(){
-  if(!SYNC_URL)return;let changed=false;
+  if(!CLOUD&&!scriptRead())return;let changed=false;
   for(const c of COURSES){if(c.id===COURSE)continue;const x=sfxOf(c.id);
-    try{const j=await api({action:'get',course:c.id});
-      const lp=lsLoad('evo-srs-progress-v1'+x),ld=lsLoad('evo-srs-deck-v1'+x);
-      if(j.progress&&(!lp||(j.progress.updatedAt||0)>(lp.updatedAt||0))){lsSave('evo-srs-progress-v1'+x,j.progress);changed=true}
-      if(j.deck&&(!ld||(j.deck.updatedAt||0)>(ld.updatedAt||0))){lsSave('evo-srs-deck-v1'+x,j.deck);changed=true}
+    try{const lp=lsLoad('evo-srs-progress-v1'+x),ld=lsLoad('evo-srs-deck-v1'+x);
+      if(CLOUD){
+        const rp=await CLOUD.get('progress','progress'+x,(lp&&lp.updatedAt)||0);
+        if(rp&&rp.data){lsSave('evo-srs-progress-v1'+x,rp.data);changed=true}
+        else if(lp&&lp.updatedAt&&(!rp||rp.updatedAt<lp.updatedAt))await CLOUD.put('progress','progress'+x,lp); // e.g. the first sign-in: what this device has goes up
+        const rd=await CLOUD.get('deck','deck'+x,(ld&&ld.updatedAt)||0,ROLE!=='owner');
+        if(rd&&rd.data){lsSave('evo-srs-deck-v1'+x,rd.data);changed=true}
+        else if(ROLE==='owner'&&ld&&ld.updatedAt&&(!rd||rd.updatedAt<ld.updatedAt))await CLOUD.put('deck','deck'+x,ld);
+      }else{const j=await api({action:'get',course:c.id});
+        if(j.progress&&(!lp||(j.progress.updatedAt||0)>(lp.updatedAt||0))){lsSave('evo-srs-progress-v1'+x,j.progress);changed=true}
+        if(j.deck&&(!ld||(j.deck.updatedAt||0)>(ld.updatedAt||0))){lsSave('evo-srs-deck-v1'+x,j.deck);changed=true}}
     }catch(e){}}
   if(changed&&view==='home')render();
 }
@@ -723,11 +730,27 @@ async function saveCfg(){try{if(!SYNC_URL||!('caches' in window))return;const c=
 // starts disconnected and is refused if it tries to reach the real account, so it can never read or overwrite real progress.
 const REAL_SYNC='https://script.google.com/macros/s/AKfycbwGq0VAIy4YE9NWPalbeyqefTW4mzGWDF8DUts6RSU79AMyEbxkhUhW8mW1T8KNCy-o/exec';
 const LIVE_SITE=location.protocol==='https:'&&location.hostname==='michael41002-art.github.io'&&location.pathname.startsWith('/evo');
-let SYNC_URL=(()=>{const d=LIVE_SITE?REAL_SYNC:'';try{const s=localStorage.getItem(LS_S);return s&&(LIVE_SITE||s!==REAL_SYNC)?s:d}catch(e){return d}})();
+// Since v1.25 every learner signs in with a Google account and keeps their own progress in the cloud database (Firebase).
+// The cards of a course are one shared deck: only the owner writes it, everyone who signs in reads it (the user chose open access).
+// The old Google script stays as a side channel: the owner's reminders and a backup copy of the owner's data, plus a
+// read-only catch-up for a device that used the app before accounts existed and has not signed in yet.
+const LS_LEG='evo-legacy', LS_UID='evo-uid', LS_ROLE='evo-role';
+const LEGACY=(()=>{try{let v=localStorage.getItem(LS_LEG);if(v==null){v=(localStorage.getItem('evo-srs-progress-v1')||localStorage.getItem('evo-srs-progress-v1:cell'))?'1':'0';localStorage.setItem(LS_LEG,v)}return v==='1'}catch(e){return false}})();
+let SYNC_URL=LIVE_SITE?REAL_SYNC:'';
+// the web config of the Firebase project evo-study: public by design, access is decided by the database rules (כלים/firestore.rules)
+const FB_CONFIG={apiKey:'AIzaSyCZ96QxjOPJpOJEeYteveGhHLdC8rHffN8',authDomain:'evo-study-8c4b9.firebaseapp.com',projectId:'evo-study-8c4b9',storageBucket:'evo-study-8c4b9.firebasestorage.app',messagingSenderId:'1036183586370',appId:'1:1036183586370:web:cba5f47ac1ca6dff434fdb'};
+const FB_VER='10.14.1';
+let FB=null, USER=null, ROLE='local', CLOUD=null; // ROLE: local (not signed in) | owner | member (anyone else who signed in)
+const seen={}; // per stored object: the updatedAt this device last saw in the cloud
+const cloudOn=()=>LIVE_SITE&&!!FB_CONFIG;
+const scriptRead=()=>!!SYNC_URL&&(ROLE==='owner'||(LEGACY&&!USER));
+const scriptWrite=()=>!!SYNC_URL&&ROLE==='owner';
+const mayEdit=()=>ROLE!=='member'; // a member's cards come from the shared deck, so changing them on the device would not last
+const canPut=which=>!!CLOUD&&(which==='progress'||ROLE==='owner');
 const timers={},busy={},again={},pend={};
 function persist(which){
   const obj=which==='progress'?P:D;obj.updatedAt=Date.now();lsSave(which==='progress'?LS_P:LS_D,obj);
-  if(!SYNC_URL)return;pend[which]=true;clearTimeout(timers[which]);timers[which]=setTimeout(()=>flush(which),1500);
+  if(!canPut(which))return;pend[which]=true;clearTimeout(timers[which]);timers[which]=setTimeout(()=>flush(which),which==='progress'?5000:1500);
 }
 function remindSummary(){const dues=[];let nr=0;for(const c of CARDS){const s=P.cards[c.id];if(!s)nr++;else if(s.due)dues.push(s.due)}return {dues,newRemaining:nr}}
 async function api(body,url){
@@ -737,16 +760,21 @@ async function api(body,url){
   const j=await r.json();if(j&&j.error)throw new Error(j.error);return j;
 }
 async function flush(which){
-  if(!SYNC_URL)return;
+  if(!canPut(which))return;
   if(busy[which]){again[which]=true;return}
   busy[which]=true;pend[which]=false;clearTimeout(timers[which]);
   const data=JSON.parse(JSON.stringify(which==='progress'?P:D));
-  const crs=COURSE;const body={action:'put',which:which+sfx(),data};if(which==='progress')body.summary=remindSummary();
+  const crs=COURSE,key=which+sfx(),cloud=CLOUD;
   try{
-    const j=await api(body);
-    if(j.stale&&j.data&&crs===COURSE){ // another device saved something newer
-      if(which==='progress'){P=normP(j.data);lsSave(LS_P,P)}else{D=normD(j.data);lsSave(LS_D,D)}
-      rebuild();if(view!=='study')render();
+    const r=await cloud.get(which,key,seen[key]!=null?seen[key]:data.updatedAt);
+    if(cloud!==CLOUD){/* signed out or switched account meanwhile: drop it */}
+    else if(r&&r.data){ // another device saved something newer
+      seen[key]=r.updatedAt;
+      if(crs===COURSE){if(which==='progress'){P=normP(r.data);lsSave(LS_P,P)}else{D=normD(r.data);lsSave(LS_D,D)}
+        rebuild();if(view!=='study')render()}
+    }else{
+      await cloud.put(which,key,data);seen[key]=data.updatedAt;
+      if(scriptWrite()){const body={action:'put',which:key,data};if(which==='progress')body.summary=remindSummary();api(body).catch(()=>{})}
     }
     syncState='synced';
   }catch(e){syncState='error';pend[which]=true}
@@ -754,24 +782,103 @@ async function flush(which){
   if(again[which]){again[which]=false;flush(which)}
 }
 function flushPending(){for(const w of ['progress','deck'])if(pend[w])flush(w)}
-async function pull(){
-  if(!SYNC_URL){syncState='local';updateSync();return}
+async function scriptPull(){ // read-only: nothing is written to the old script from here
   syncState='loading';updateSync();
   try{
     const crs=COURSE;const j=await api({action:'get',course:COURSE});if(crs!==COURSE)return;let changed=false;
-    if(j.progress){const r=normP(j.progress);if(r.updatedAt>P.updatedAt){P=r;lsSave(LS_P,P);changed=true}else if(r.updatedAt<P.updatedAt)flush('progress')}else if(P.updatedAt)flush('progress');
-    if(j.deck){const r=normD(j.deck);if(r.updatedAt>D.updatedAt){D=r;lsSave(LS_D,D);changed=true}else if(r.updatedAt<D.updatedAt)flush('deck')}else if(D.updatedAt)flush('deck');
+    if(j.progress){const r=normP(j.progress);if(r.updatedAt>P.updatedAt){P=r;lsSave(LS_P,P);changed=true}}
+    if(j.deck){const r=normD(j.deck);if(r.updatedAt>D.updatedAt){D=r;lsSave(LS_D,D);changed=true}}
+    syncState='local';if(changed){rebuild();if(view!=='study')render()}
+  }catch(e){syncState='local'}
+  updateSync();
+}
+async function pull(){
+  if(!CLOUD){if(scriptRead())return scriptPull();syncState='local';updateSync();return}
+  syncState='loading';updateSync();
+  try{
+    const crs=COURSE,cloud=CLOUD,own=ROLE==='owner';let changed=false;
+    const rp=await cloud.get('progress','progress'+sfx(),P.updatedAt||0);if(crs!==COURSE||cloud!==CLOUD)return;
+    if(rp)seen['progress'+sfx()]=rp.updatedAt;
+    if(rp&&rp.data){P=normP(rp.data);lsSave(LS_P,P);changed=true}else if(P.updatedAt&&(!rp||rp.updatedAt<P.updatedAt))flush('progress');
+    const rd=await cloud.get('deck','deck'+sfx(),D.updatedAt||0,!own);if(crs!==COURSE||cloud!==CLOUD)return;
+    if(rd)seen['deck'+sfx()]=rd.updatedAt;
+    if(rd&&rd.data){D=normD(rd.data);lsSave(LS_D,D);changed=true}else if(own&&D.updatedAt&&(!rd||rd.updatedAt<D.updatedAt))flush('deck');
     syncState='synced';if(changed){rebuild();if(view!=='study')render()}
   }catch(e){syncState='error'}
   updateSync();
 }
+// ---------- accounts (Firebase) ----------
+// a stored object is one JSON string, cut into parts because a database document holds at most 1MB
+function fbCloud(fs,db,uid){
+  const CH=250000;
+  const ref=(kind,key)=>kind==='deck'?fs.doc(db,'decks',key):fs.doc(db,'users',uid,'blobs',key);
+  return {
+    // returns null (nothing stored), {updatedAt} (nothing newer than since), or {updatedAt,data}; any: also when older than since
+    async get(kind,key,since,any){const r=ref(kind,key);const s=await fs.getDoc(r);if(!s.exists())return null;const m=s.data();
+      if(since!=null&&(any?m.updatedAt===since:m.updatedAt<=since))return {updatedAt:m.updatedAt};
+      let str=m.s||'';for(let i=1;i<(m.n||1);i++){const p=await fs.getDoc(fs.doc(db,r.path+'/parts/'+i));if(!p.exists())throw new Error('part missing');str+=p.data().s}
+      return {updatedAt:m.updatedAt,data:JSON.parse(str)}},
+    async put(kind,key,obj){const str=JSON.stringify(obj),parts=[];for(let i=0;i<str.length;i+=CH)parts.push(str.slice(i,i+CH));
+      const r=ref(kind,key),b=fs.writeBatch(db);b.set(r,{updatedAt:obj.updatedAt||0,n:parts.length,s:parts[0]||''});
+      for(let i=1;i<parts.length;i++)b.set(fs.doc(db,r.path+'/parts/'+i),{s:parts[i]});await b.commit()}
+  };
+}
+async function fbLoad(){
+  if(FB)return FB;const base='https://www.gstatic.com/firebasejs/'+FB_VER+'/';
+  const [a,au,fs]=await Promise.all([import(base+'firebase-app.js'),import(base+'firebase-auth.js'),import(base+'firebase-firestore-lite.js')]);
+  const ap=a.initializeApp(FB_CONFIG);FB={au,fs,auth:au.getAuth(ap),db:fs.getFirestore(ap)};return FB;
+}
+const denied=e=>!!e&&e.code==='permission-denied';
+async function fbRole(f){ // only the owner may read this path; everyone else is refused
+  try{await f.fs.getDoc(f.fs.doc(f.db,'owner','probe'));return 'owner'}catch(e){if(denied(e))return 'member';throw e}
+}
+// the one place that connects a person to a cloud store (the tests call it with a made-up store)
+function signedIn(user,role,cloud){
+  USER=user;ROLE=role;CLOUD=role==='owner'||role==='member'?cloud:null;for(const k in seen)delete seen[k];
+  if(!CLOUD){syncState='local';return}
+  let prev=null;try{prev=localStorage.getItem(LS_UID)}catch(e){}
+  if(prev&&prev!==user.uid){ // someone else's progress is on this device: it must not go into this account
+    for(const c of COURSES)try{localStorage.removeItem('evo-srs-progress-v1'+sfxOf(c.id))}catch(e){}
+    P=blankProgress();session=null;quiz=null;exam=null;recall=null;undoStack=[];if(view==='study')view='home';
+  }
+  try{localStorage.setItem(LS_UID,user.uid)}catch(e){}
+}
+function signedOut(){USER=null;ROLE='local';CLOUD=null;syncState='local';for(const k in seen)delete seen[k]}
+async function onAuth(u){
+  if(!u){signedOut();return}
+  const email=(u.email||'').toLowerCase();let role=null;
+  try{role=await fbRole(FB);try{localStorage.setItem(LS_ROLE,JSON.stringify({uid:u.uid,role}))}catch(e){}}
+  catch(e){try{const c=JSON.parse(localStorage.getItem(LS_ROLE)||'null');if(c&&c.uid===u.uid)role=c.role}catch(e2){}}
+  signedIn({uid:u.uid,email,sure:!!role},role||'member',fbCloud(FB.fs,FB.db,u.uid));
+}
+let booting=null;
+function cloudBoot(){ // resolves once it is known who is signed in (or that nobody is)
+  if(!cloudOn())return Promise.resolve();
+  return booting||(booting=(async()=>{
+    try{const f=await fbLoad();
+      await new Promise(res=>{let first=true;f.au.onAuthStateChanged(f.auth,async u=>{
+        try{await onAuth(u)}catch(e){}
+        if(first){first=false;res()}else{render();await pull();pullOthers();if(view!=='study')render()}})});
+    }catch(e){booting=null}
+  })());
+}
+async function signIn(){
+  if(!FB){toast('אין חיבור כרגע. נסה שוב בעוד רגע');cloudBoot();return}
+  try{const p=new FB.au.GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});await FB.au.signInWithPopup(FB.auth,p)}
+  catch(e){if(!e||(e.code!=='auth/popup-closed-by-user'&&e.code!=='auth/cancelled-popup-request'))toast('הכניסה נכשלה. נסה שוב')}
+}
+async function signOutNow(){
+  try{if(pend.progress)await flush('progress');if(pend.deck)await flush('deck')}catch(e){}
+  try{await FB.au.signOut(FB.auth)}catch(e){toast('היציאה נכשלה')}
+}
 function updateSync(){const s=document.getElementById('sync');if(!s)return;s.dataset.s=syncState;
   s.textContent={local:'שמור רק במכשיר',loading:'מסנכרן…',synced:'מסונכרן',error:'אין חיבור כרגע'}[syncState];
-  s.title={local:'ההתקדמות נשמרת רק במכשיר הזה',loading:'מסנכרן…',synced:'ההתקדמות מסונכרנת',error:'אין חיבור כרגע. ההתקדמות נשמרת במכשיר ותסונכרן אחר כך'}[syncState]}
+  s.title={local:'ההתקדמות נשמרת רק במכשיר הזה',loading:'מסנכרן…',synced:'ההתקדמות שמורה בחשבון שלך',error:'אין חיבור כרגע. ההתקדמות נשמרת במכשיר ותסונכרן אחר כך'}[syncState]}
 function normP(p){const b=blankProgress();return {v:1,updatedAt:p.updatedAt||0,cards:p.cards||{},log:p.log||{},recall:p.recall||[],rl:p.rl||[],exams:p.exams||[],maps:p.maps||{},mcqS:p.mcqS||{},exl:p.exl||[],exT:p.exT||{},settings:Object.assign(b.settings,p.settings||{})}}
 function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d.added||[],lectures:d.lectures||[],mcq:d.mcq||[],pairs:d.pairs||[],flags:d.flags||{},concepts:d.concepts||[]}}
 async function initStore(){
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);rebuild();render();
+  await cloudBoot();if(USER)render();
   await pull();pullOthers();
 }
 let lastDay=null;
@@ -779,7 +886,7 @@ document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='hidden'){flushPending();return}
   if(view!=='study'){pull().then(()=>{if(view==='home')render()})}
 });
-window.addEventListener('online',()=>{flushPending();if(view!=='study')pull()});
+window.addEventListener('online',()=>{flushPending();if(cloudOn()&&!FB)cloudBoot().then(()=>{if(view!=='study'){render();pull()}});else if(USER&&!USER.sure&&FB)onAuth(FB.auth.currentUser).then(()=>{if(view!=='study'){render();pull()}});else if(view!=='study')pull()});
 
 // ---------- answer check (on the device, no AI) ----------
 const STOP=new Set(['של','את','על','עם','או','גם','לא','כי','זה','זו','זהו','זוהי','שלו','שלה','שלהם','כל','בין','אך','אבל','הם','הן','הוא','היא','אשר','רק','עוד','כמו','מתוך','אל','לפי','יש','אין','אחד','אחת','ו','ה','ב','ל','מ','ש']);
@@ -854,32 +961,30 @@ const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||
 const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 
 function renderMore(){
-  // sync
-  const sync=h('section',{class:'panel stack'},h('h2',{},'סנכרון'));
-  if(SYNC_URL){
-    const off=h('button',{class:'danger',on:{click:()=>{if(!off.classList.contains('arm')){off.classList.add('arm');off.textContent='בטוח? לחץ שוב';setTimeout(()=>{off.classList.remove('arm');off.textContent='ניתוק מהמכשיר הזה'},3000);return}
-      SYNC_URL='';try{localStorage.removeItem(LS_S)}catch(e){}syncState='local';render();toast('הסנכרון נותק במכשיר הזה')}}},'ניתוק מהמכשיר הזה');
-    sync.append(h('p',{},'ההתקדמות נשמרת בחשבון Google שלך, וכל מכשיר שמחובר רואה אותה.'),
-      h('div',{class:'row'},h('button',{on:{click:()=>{pull().then(()=>{toast(syncState==='synced'?'סונכרן':'הסנכרון נכשל');render()})}}},'סנכרן עכשיו'),
-        h('button',{on:{click:async()=>{const link=location.origin+location.pathname+'#connect='+encodeURIComponent(SYNC_URL);try{await navigator.clipboard.writeText(link);toast('הקישור הועתק. פתח אותו במכשיר השני')}catch(e){prompt('העתק את הקישור ופתח אותו במכשיר השני:',link)}}}},'קישור חיבור למכשיר נוסף'),off));
-  }else{
-    const inp=h('input',{type:'text',id:'syncUrl',dir:'ltr',placeholder:'https://script.google.com/macros/s/…/exec',style:'flex:1;min-width:0',autocomplete:'off'});
-    const msg=h('p',{class:'warn',role:'status'});
-    const go=h('button',{class:'primary',on:{click:async()=>{
-      const u=inp.value.trim();if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(u)){msg.textContent='זו צריכה להיות כתובת שמתחילה ב-https://script.google.com';return}
-      go.disabled=true;msg.className='sub';msg.textContent='בודק חיבור…';
-      try{await api({action:'ping'},u);SYNC_URL=u;try{localStorage.setItem(LS_S,u)}catch(e){}
-        await pull();toast('הסנכרון מחובר');render()}
-      catch(e){go.disabled=false;msg.className='warn';msg.textContent='החיבור נכשל. ודא שהעתקת את כתובת ה-Web app ושהגישה מוגדרת ל-Anyone.'}}}},'חיבור');
-    sync.append(h('p',{},'כרגע ההתקדמות שמורה רק במכשיר הזה. כדי לשמור אותה בענן ולסנכרן בין הטלפון למחשב, הדבק כאן את כתובת ה-Web app מ-Google Apps Script.'),
-      h('label',{class:'sub',for:'syncUrl'},'כתובת הסנכרון'),h('div',{class:'row'},inp,go),msg);
+  // account
+  const sync=h('section',{class:'panel stack'},h('h2',{},'חשבון וסנכרון'));
+  let share=null;
+  if(!cloudOn()&&!USER)sync.append(h('p',{},LIVE_SITE?'ההתקדמות שמורה במכשיר הזה.':'עותק מקומי: ההתקדמות שמורה רק כאן.'));
+  else if(!USER)sync.append(h('p',{},'היכנס עם חשבון Google כדי לשמור את ההתקדמות שלך בענן, לסנכרן בין הטלפון למחשב ולקבל את כל חומר הקורסים.'),
+    h('div',{},h('button',{class:'primary',on:{click:signIn}},'כניסה עם Google')));
+  else{
+    const off=h('button',{on:{click:async()=>{off.disabled=true;await signOutNow();render()}}},'יציאה מהחשבון');
+    sync.append(h('p',{},'מחובר כ-',h('b',{dir:'ltr'},USER.email),'.'));
+    sync.append(h('p',{class:'sub'},'ההתקדמות שלך נשמרת בחשבון, וכל מכשיר שנכנסת בו רואה אותה.'),
+      h('div',{class:'row'},h('button',{on:{click:()=>{pull().then(()=>{toast(syncState==='synced'?'סונכרן':'הסנכרון נכשל');render()})}}},'סנכרן עכשיו'),off));
+    if(ROLE==='owner'&&CLOUD){
+      const link=location.origin+location.pathname;
+      share=h('section',{class:'panel stack'},h('h2',{},'שיתוף האפליקציה'),
+        h('p',{},'כל מי שיש לו את הקישור יכול להיכנס עם חשבון Google ולקבל את כל החומר. לכל אחד התקדמות משלו, ואף אחד לא רואה או משנה את שלך. רק אתה יכול להוסיף ולערוך כרטיסים.'),
+        h('div',{},h('button',{on:{click:async()=>{try{await navigator.clipboard.writeText(link);toast('הקישור הועתק')}catch(e){prompt('העתק את הקישור:',link)}}}},'העתק קישור לשיתוף')));
+    }
   }
   // reminder
   const rem=h('section',{class:'panel stack'},h('h2',{},'תזכורת יומית'),
     h('p',{},'כל ערב בסביבות 19:40 (חוץ משבת) נבדק כמה כרטיסים מחכים לך, ונשלחת התראה לטלפון. אם כבר סיימת את החזרות של היום, לא תקבל התראה.'));
   const pmsg=h('p',{class:'sub',role:'status'});
   const pushOk='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
-  if(!SYNC_URL)rem.append(h('p',{class:'warn'},'כדי לקבל התראות צריך קודם לחבר סנכרון.'));
+  if(!scriptWrite())rem.append(h('p',{class:'warn'},'כדי לקבל התראות צריך קודם להיכנס לחשבון.'));
   else if(!pushOk)rem.append(h('p',{class:'warn'},isIOS()&&!isStandalone()?'באייפון ההתראות עובדות רק מהאפליקציה המותקנת: הוסף אותה למסך הבית מ-Safari, פתח אותה משם וחזור לכאן.':'הדפדפן הזה לא תומך בהתראות. נסה ב-Chrome או מהאפליקציה המותקנת.'));
   else{
     const btn=h('button',{class:'primary',on:{click:async()=>{
@@ -910,7 +1015,7 @@ function renderMore(){
   // import
   const ta=h('textarea',{id:'importText',dir:'ltr',rows:'4',placeholder:'הדבק כאן…',style:'min-height:6em;font-size:.85rem'});
   const imsg=h('p',{role:'status'});
-  const imp=h('section',{class:'panel stack'},h('h2',{},'הוספת חומר וייבוא'),
+  const imp=!mayEdit()?null:h('section',{class:'panel stack'},h('h2',{},'הוספת חומר וייבוא'),
     h('p',{},'הרצאה חדשה: שלח ל-Claude את הסיכום ובקש "חבילת כרטיסים לאפליקציה". הדבק כאן את מה שתקבל.'),
     h('p',{class:'sub'},'הכרטיסים וההתקדמות יתווספו לקורס: ',h('b',{},courseObj().name),'. להוספה לקורס אחר, בחר אותו למעלה.'),
     h('div',{class:'row'},h('button',{on:{click:async()=>{const t=packPrompt();try{await navigator.clipboard.writeText(t);toast('הבקשה הועתקה. הדבק אותה ל-Claude יחד עם הסיכום')}catch(e){prompt('העתק את הבקשה:',t)}}}},'העתק בקשה ל-Claude'),h('span',{class:'sub'},'בקשה מוכנה שמבטיחה תמהיל כרטיסים שבונה הבנה, לא רק שינון.')),
@@ -926,9 +1031,9 @@ function renderMore(){
   let inst=null;
   if(!isStandalone())inst=h('section',{class:'panel stack'},h('h2',{},'התקנה במסך הבית'),
     h('p',{},isIOS()?'ב-Safari: לחץ על כפתור השיתוף (הריבוע עם החץ) ובחר "הוספה למסך הבית".':'ב-Chrome: לחץ על ⋮ ובחר "הוספה למסך הבית" או "התקנת אפליקציה".'),
-    h('p',{class:'sub'},'אחרי ההתקנה האפליקציה נפתחת במסך מלא ועובדת גם בלי אינטרנט. אם כבר חיברת סנכרון בדפדפן, תצטרך לחבר שוב מתוך האפליקציה המותקנת (או לפתוח בה את קישור החיבור).'));
+    h('p',{class:'sub'},'אחרי ההתקנה האפליקציה נפתחת במסך מלא ועובדת גם בלי אינטרנט. אם כבר נכנסת לחשבון בדפדפן, תצטרך להיכנס שוב מתוך האפליקציה המותקנת.'));
   const ss=studySettings();
-  app.append(h('div',{class:'stack'},ss.set,ss.how,flagsPanel(),sync,rem,imp,bak,inst,ss.reset,h('p',{class:'sub version'},'חזרות · גרסה '+APP_VERSION)));
+  app.append(h('div',{class:'stack'},ss.set,ss.how,flagsPanel(),sync,share,ROLE==='member'?null:rem,imp,bak,inst,ss.reset,h('p',{class:'sub version'},'חזרות · גרסה '+APP_VERSION)));
 }
 function flagsPanel(){
   const f=D.flags||{};const ids=Object.keys(f);if(!ids.length)return null;
@@ -942,14 +1047,9 @@ function homeBanners(){
   const dlx=daysToExam();
   if(dlx!=null&&dlx>=1&&dlx<=10)out.push(h('div',{class:'banner'},h('span',{},(dlx===1?'מחר המבחן':dlx+' ימים למבחן')+'. מעבר לחזרות: מבחן מסכם אחד ביום, ושליפה חופשית על ההרצאה החלשה.'),h('button',{on:{click:()=>{view='quiz';pmode='exam';exam=null;render();window.scrollTo(0,0)}}},'למבחן מסכם')));
   if(!LIVE_SITE)out.push(h('div',{class:'banner'},h('span',{},'עותק מקומי של האפליקציה: הוא לא מסתנכרן עם ההתקדמות האמיתית, ושום דבר כאן לא משנה אותה.')));
-  else if(!SYNC_URL)out.push(h('div',{class:'banner'},h('span',{},'הסנכרון עוד לא מחובר, ההתקדמות נשמרת רק במכשיר הזה.'),h('button',{on:{click:()=>{view='more';render();window.scrollTo(0,0)}}},'לחיבור')));
+  else if(cloudOn()&&!USER)out.push(h('div',{class:'banner'},h('span',{},LEGACY?'מעכשיו הסנכרון עובד עם חשבון Google. עד שתיכנס, מה שתלמד כאן נשמר רק במכשיר הזה.':'היכנס עם חשבון Google כדי לקבל את כל החומר ולשמור את ההתקדמות שלך.'),h('button',{on:{click:signIn}},'כניסה')));
   return out;
 }
-// one-tap connect link: …/#connect=<url>
-(function(){const m=location.hash.match(/^#connect=(.+)$/);if(!m)return;
-  try{const u=decodeURIComponent(m[1]);if(/^https:\/\/script\.google(usercontent)?\.com\//.test(u)){SYNC_URL=u;localStorage.setItem(LS_S,u)}}catch(e){}
-  history.replaceState(null,'',location.pathname)})();
-
 // ---------- FSRS scheduler ----------
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
 function retr(t,S){return Math.pow(1+FACTOR*t/S,DECAY)}
@@ -1707,6 +1807,7 @@ const UI_ICON={
 function iconBtn(k,label,fn){const b=h('button',{class:'icon','aria-label':label,title:label,on:{click:fn}});b.innerHTML=UI_ICON[k];return b}
 // the ⋯ menu of a card: report a mistake, edit
 function cardMenu(nid,canEdit){
+  if(!mayEdit())return null;
   const flagged=(D.flags||{})[nid];
   const sm=h('summary',{'aria-label':'עוד פעולות',title:'עוד פעולות'});sm.innerHTML=UI_ICON.dots;
   return h('details',{class:'menu'},sm,h('div',{class:'pop'},
@@ -1912,14 +2013,14 @@ function renderMCQ(){
     h('article',{class:'card'},h('div',{class:'meta'},h('span',{},`שאלה ${z.i+1} מתוך ${z.qs.length}`),h('span',{},lecName(x.n.t))),h('div',{class:'ask'},x.ask),
       h('div',{class:'q',html:x.kind==='def'?esc(x.prompt):x.promptHtml}),opts,
       x.picked&&x.n.e?h('div',{class:'note'},h('b',{},'הסבר'),x.n.e):null,
-      x.picked?(flagOpen===x.n.id?flagBox(x.n.id,plain(x.promptHtml||x.prompt||'')):(D.flags||{})[x.n.id]?h('button',{class:'flagged',style:'align-self:flex-start;font-size:.8rem;padding:2px 10px',on:{click:()=>unflag(x.n.id)}},'⚑ סומן לבדיקה'):h('button',{style:'align-self:flex-start;font-size:.8rem;padding:2px 10px',on:{click:()=>{flagOpen=x.n.id;render()}}},'יש פה טעות')):null),
+      x.picked?(flagOpen===x.n.id?flagBox(x.n.id,plain(x.promptHtml||x.prompt||'')):(D.flags||{})[x.n.id]?h('button',{class:'flagged',style:'align-self:flex-start;font-size:.8rem;padding:2px 10px',on:{click:()=>unflag(x.n.id)}},'⚑ סומן לבדיקה'):(mayEdit()?h('button',{style:'align-self:flex-start;font-size:.8rem;padding:2px 10px',on:{click:()=>{flagOpen=x.n.id;render()}}},'יש פה טעות'):null)):null),
     x.picked?h('button',{class:'primary reveal',on:{click:()=>{z.i++;render();window.scrollTo(0,0)}}},z.i+1<z.qs.length?'לשאלה הבאה':'לתוצאות'):h('p',{class:'sub'},'הבוחן לא משנה את לוח החזרות.')));
 }
 
 function renderBrowse(){
   const search=h('input',{type:'text',id:'browseQ',dir:'auto',placeholder:'חיפוש…',value:browseQ,style:'flex:1;min-width:0',on:{input:e=>{browseQ=e.target.value;drawList()}}});
   const list=h('div',{class:'list'});
-  const top=h('div',{class:'stack browsetop',style:'gap:10px'},lecChips(),h('div',{class:'row'},search,h('button',{class:'primary',on:{click:()=>{editing='__new';drawList()}}},'+ כרטיס חדש')));
+  const top=h('div',{class:'stack browsetop',style:'gap:10px'},lecChips(),h('div',{class:'row'},search,mayEdit()?h('button',{class:'primary',on:{click:()=>{editing='__new';drawList()}}},'+ כרטיס חדש'):null));
   function drawList(){
     list.innerHTML='';
     if(editing==='__new')list.append(editorEl({k:'qa',t:lecFilter==='all'?LECS[0][0]:lecFilter},res=>{editing=null;if(res==='added')toast('הכרטיס נוסף');render()}));
@@ -1929,7 +2030,7 @@ function renderBrowse(){
       const ids=CARDS.filter(c=>c.nid===n.id).map(c=>st(c.id));
       const lbl=ids.length&&ids.every(Boolean)?(ids.every(s=>s.q==='review')?'נלמד':'בלמידה'):'חדש';
       // the whole row opens the editor (a big target instead of a small "ערוך" button)
-      const open=()=>{editing=n.id;drawList()};
+      const open=()=>{if(!mayEdit())return;editing=n.id;drawList()};
       list.append(h('div',{class:'item tap',role:'button',tabindex:'0','aria-label':'עריכת הכרטיס',title:'הקש לעריכה',on:{click:open,keydown:e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open()}}}},
         h('div',{class:'line'},h('span',{class:'txt',html:n.k==='qa'?'<b>'+esc(n.f)+'</b> '+esc(n.b):esc(n.x).replace(CZ,'<span class="ans">$2</span>')}),h('span',{class:'tag'},lecShort(n.t)+' · '+lbl))));
     }
