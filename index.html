@@ -452,6 +452,66 @@ figcaption{font-size:var(--fs-xs);color:var(--ink-2);text-align:center}
 .exi-res.good{color:var(--good)}
 .exi-res.bad{color:var(--again)}
 /* ==== /EX:image ==== */
+/* ==== THEME:play ==== (v1.30, the user chose the "colourful and playful" direction)
+   Amber (--sun) joins green and blue as the action colour; cards and buttons sit on a flat coloured edge instead of a soft shadow;
+   the home screen opens with a green hero: logo, streak, course switch, and the daily goal ring. */
+:root{--bg:#F4F7F2;--sun:#F2B544;--sun-ink:#3A2A00;--sun-deep:#C98F1F;--accent-deep:#124438;--edge:#DCE4DA;--hero-a:#23806A;--hero-b:#17574A;--shadow:0 3px 0 var(--edge)}
+:root[data-course="cell"]{--accent-deep:#1C4274;--hero-a:#3470B8;--hero-b:#1F4677}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#0F1513;--sun-deep:#9C6D12;--accent-deep:#2F8F76;--edge:#080C0A;--hero-a:#1B5A4B;--hero-b:#123D33;--shadow:0 3px 0 var(--edge)}
+  :root[data-course="cell"]:not([data-theme="light"]){--accent-deep:#4F7FC0;--hero-a:#244C80;--hero-b:#16304F}}
+:root[data-theme="dark"]{--bg:#0F1513;--sun-deep:#9C6D12;--accent-deep:#2F8F76;--edge:#080C0A;--hero-a:#1B5A4B;--hero-b:#123D33;--shadow:0 3px 0 var(--edge)}
+:root[data-theme="dark"][data-course="cell"]{--accent-deep:#4F7FC0;--hero-a:#244C80;--hero-b:#16304F}
+.panel{border-radius:22px}
+button.primary{border-radius:16px;box-shadow:0 4px 0 var(--accent-deep)}
+button.primary:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 var(--accent-deep)}
+button.primary.sun{background:var(--sun);color:var(--sun-ink);box-shadow:0 5px 0 var(--sun-deep);font-weight:700}
+button.primary.sun:active:not(:disabled){box-shadow:0 2px 0 var(--sun-deep)}
+@media (hover:hover){button.primary.sun:not(:disabled):hover{background:color-mix(in srgb,#000 6%,var(--sun))}}
+.progress{height:12px;border-radius:8px}
+.progress i{background:var(--sun);border-radius:8px}
+.stepinfo b,.pill{background:var(--accent);color:var(--accent-ink)}
+.bnav{border-radius:22px 22px 0 0;box-shadow:0 -2px 0 var(--edge)}
+.bnav button[aria-current="page"] svg{background:var(--sun);stroke:var(--sun-ink)}
+@media (min-width:900px){.bnav{border-radius:0;box-shadow:-2px 0 0 var(--edge)}}
+/* home hero */
+.homehero{background:linear-gradient(150deg,var(--hero-a),var(--hero-b));color:#fff;margin:-4px -16px var(--s4);padding:calc(14px + env(safe-area-inset-top,0px)) 18px 22px;border-radius:0 0 28px 28px;display:flex;flex-direction:column;gap:10px}
+@media (min-width:900px){.homehero{margin:16px 0;border-radius:28px}}
+.hh-top{display:flex;align-items:center;gap:9px}
+.hh-top b{font-size:22px;font-weight:700;letter-spacing:-.2px}
+.logo{width:34px;height:34px;flex:none;display:block}
+.logo svg{width:100%;height:100%;display:block}
+.streakpill{margin-inline-start:auto;background:rgba(255,255,255,.16);border-radius:var(--r-pill);padding:4px 12px;font-weight:700;font-size:var(--fs-sm);display:inline-flex;gap:7px;align-items:center}
+.streakpill::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--sun);flex:none}
+.hh-row{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.homehero .cchips{background:rgba(255,255,255,.14)}
+.homehero .cchip{color:#fff}
+.homehero .cchip[aria-pressed="true"]{background:#FBF8F1;color:var(--hero-b);box-shadow:none}
+.homehero .sync{color:rgba(255,255,255,.88)}
+.homehero .sync::before{background:rgba(255,255,255,.6)}
+.homehero .sync[data-s="synced"]::before{background:#9BE3C8} .homehero .sync[data-s="error"]::before{background:#FFB4A6} .homehero .sync[data-s="loading"]::before{background:var(--sun)}
+.homehero .hello{color:rgba(255,255,255,.88);margin:2px 0 -6px}
+.homehero h1{font-size:var(--fs-xl);color:#fff}
+.goal{display:flex;align-items:center;gap:14px;margin-top:4px}
+.goalring{width:74px;height:74px;flex:none}
+.goalring circle{fill:none;stroke-width:9}
+.goalring .bg{stroke:rgba(255,255,255,.2)}
+.goalring .fg{stroke:var(--sun);stroke-linecap:round;transition:stroke-dasharray .6s ease}
+.goalring text{font:700 17px var(--body);fill:#fff}
+.goal .gt{display:flex;flex-direction:column;min-width:0}
+.goal .gt b{font-size:var(--fs-lg);line-height:1.3}
+.goal .gt span{font-size:var(--fs-sm);opacity:.92}
+/* study card: the answer in a soft box, the explanation with an amber bar */
+.card{border-radius:22px}
+.answer{border-top:0;padding-top:0}
+.answer .a{background:var(--accent-soft);border-radius:var(--r-md);padding:var(--s3) var(--s4)}
+.card .note:not(.lesson):not(.mine):not(.ai){background:none;border-radius:0;padding-block:2px;padding-inline:var(--s4) 0;box-shadow:inset -5px 0 0 var(--sun)}
+/* three numbers under the main card */
+.stiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2)}
+.stile{background:var(--surface);border-radius:18px;padding:10px 6px 9px;text-align:center;box-shadow:var(--shadow);font-size:var(--fs-xs);color:var(--ink-2);line-height:1.3}
+.stile b{display:block;font-size:var(--fs-xl);color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.25}
+.stile i{display:block;width:26px;height:7px;border-radius:7px;margin:0 auto 6px}
+/* ==== /THEME:play ==== */
 </style>
 </head>
 <body>
@@ -495,7 +555,7 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=12, ROUND_NEW=5, ROUND_REV=2;
 const EX_EVERY=4, EX_MAX=1; // a game exercise after at least 4 steps, at most 1 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.29', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.30', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -1320,7 +1380,7 @@ function stepBar(){
   const s=session;let kind=null;
   if(s.pendingMap)kind='map';else if(s.drill)kind='drill';else if(s.ex)kind='ex';else if(s.mcq)kind='mcq';else if(s.recall)kind='recall';
   else if(s.cur&&BYID[s.cur]){const c=BYID[s.cur],x=st(s.cur);kind=teachable(c)?'teach':!x?'first':x.q==='review'?'review':x.q==='relearn'?'relearn':'first'}
-  const K={map:['פתיחת הרצאה','לפני מושגים חדשים: התמונה הגדולה של ההרצאה'],teach:['מושג חדש','קודם קוראים ומבינים. השאלה עליו תגיע בעוד כמה צעדים'],
+  const K={map:['פתיחת הרצאה','לפני מושגים חדשים: התמונה הגדולה של ההרצאה'],teach:['מושג חדש','קודם מנסים לענות, ומיד אחר כך מקבלים את ההסבר'],
     first:['בדיקה','נזכרים במה שלמדת לפני כמה דקות'],review:['חזרה','חומר שלמדת בעבר, כדי שלא יישכח'],relearn:['עוד פעם','משהו שהתבלבל, עכשיו מחזקים אותו'],
     drill:['הבחנה','שני מושגים שקל לבלבל ביניהם'],mcq:['שאלה שטעית בה','בודקים שהטעות כבר תוקנה'],recall:['סיכום','שולפים בלי רמז את מה שלמדת בסבב'],
     ex:s.ex?[s.ex.def.name,s.ex.def.why]:null}[kind];
@@ -1678,8 +1738,7 @@ function render(){
   document.querySelectorAll('.bnav').forEach(e=>e.remove());
   if(view!=='study'){
     // home: course switch, sync state, greeting and the course name once; other tabs: one compact bar
-    if(view==='home')app.append(h('div',{class:'appbar'},courseSwitch(),h('span',{class:'sync',id:'sync',role:'status'})),
-      h('div',{class:'top'},h('div',{class:'hello'},greeting()),h('h1',{},courseObj().name),h('div',{class:'count'},CARDS.length+' כרטיסים · '+CONC.length+' מושגים')));
+    if(view==='home')app.append(homeHero());
     else app.append(h('div',{class:'appbar top'},h('h1',{class:'title'},TAB_TITLE[view]||''),courseSwitch()));
     document.body.append(bottomNav());
   }
@@ -1730,6 +1789,32 @@ function lecChips(){return h('div',{class:'chips'},[['all','כל ההרצאות'
 
 // the one thing to do now: a sentence that says what comes next, and a single big button
 function firstNewLec(){for(const [L] of LECS)if(CARDS.some(c=>c.t===L&&c.k!=='rev'&&isNew(c.id)))return L;return null}
+// ---------- home hero (v1.30): logo, streak, course switch, and today's goal as a ring ----------
+const LOGO_SVG='<svg viewBox="0 0 512 512"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#23806A"/><stop offset="1" stop-color="#17574A"/></linearGradient></defs><rect width="512" height="512" rx="114" fill="#FBF8F1"/><rect x="170" y="94" width="226" height="296" rx="38" fill="#F2B544" transform="rotate(11 283 242)"/><rect x="118" y="116" width="236" height="304" rx="40" fill="url(#lg)"/><path d="M294 354 V234 Q294 198 258 198 H214 Q178 198 178 234 V354" fill="none" stroke="#FBF8F1" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+// today's goal: the new concepts planned for today; when none are planned, the reviews that are due
+function dayGoal(){const c=counts(),d=P.log[today()]||{};
+  if((d.n||0)+c.newAvail>0)return {done:d.n||0,total:(d.n||0)+c.newAvail,left:c.newAvail,unit:'new'};
+  const due=c.learn+c.review;return {done:d.r||0,total:(d.r||0)+due,left:due,unit:'rev'}}
+function homeHero(){
+  const logo=h('span',{class:'logo','aria-hidden':'true'});logo.innerHTML=LOGO_SVG;
+  const stk=streak();const g=dayGoal();const C=2*Math.PI*30,frac=g.total?Math.min(1,g.done/g.total):0;
+  const ring=h('span',{'aria-hidden':'true'});
+  ring.innerHTML='<svg class="goalring" viewBox="0 0 74 74"><circle class="bg" cx="37" cy="37" r="30"/><circle class="fg" cx="37" cy="37" r="30" transform="rotate(-90 37 37)" stroke-dasharray="'+(C*frac).toFixed(1)+' '+C.toFixed(1)+'"'+(frac?'':' stroke-opacity="0"')+'/><text x="37" y="43" text-anchor="middle">'+(g.total?g.done+'/'+g.total:'✓')+'</text></svg>';
+  const title=!g.total?'אין מה ללמוד היום':g.left?'היעד של היום':'היעד של היום הושלם ✓';
+  const sub=!g.total?'הכרטיסים הבאים יחכו לך מחר':!g.left?'אפשר לתרגל עוד, או לחזור מחר':g.unit==='new'?(g.left===1?'עוד מושג חדש אחד':'עוד '+g.left+' מושגים חדשים'):(g.left===1?'עוד חזרה אחת':'עוד '+g.left+' חזרות');
+  return h('div',{class:'homehero'},
+    h('div',{class:'hh-top'},logo,h('b',{},'חזרות'),h('span',{class:'streakpill'},stk>1?stk+' ימים ברצף':stk===1?'יום אחד ברצף':'מתחילים רצף היום')),
+    h('div',{class:'hh-row'},courseSwitch(),h('span',{class:'sync',id:'sync',role:'status'})),
+    h('div',{class:'hello'},greeting()),h('h1',{},courseObj().name),
+    h('div',{class:'goal'},ring,h('div',{class:'gt'},h('b',{},title),h('span',{},sub))));
+}
+// three numbers: concepts learned, cards waiting for review today, how much was remembered in the last 30 days
+function statTiles(){
+  const st=conceptStages();const names=Object.keys(st);const known=names.filter(k=>STAGE_ORDER.indexOf(st[k])>=2).length;
+  const c=counts(),ret=retention();
+  const tile=(col,num,label)=>h('div',{class:'stile'},h('i',{style:'background:'+col}),h('b',{},String(num)),label);
+  return h('div',{class:'stiles'},tile('var(--accent)',known,'מושגים שלמדת'),tile('var(--sun)',c.learn+c.review,'לחזרה היום'),tile('var(--easy)',ret==null?'–':ret+'%','זכירה ב-30 יום'));
+}
 function heroPanel(){
   const rows=COURSES.map(c=>({c,k:courseCounts(c.id)}));
   const cur=rows.find(r=>r.c.id===COURSE);const target=cur&&cur.k.total?cur:rows.find(r=>r.k.total);
@@ -1746,8 +1831,8 @@ function heroPanel(){
   return h('section',{class:'panel stack hero',style:'gap:var(--s4)'},h('h2',{},here?'להיום':'ב'+courseObj().short+' סיימת להיום ✓'),
     h('p',{class:'now'},parts.join(' ו-')),
     h('p',{class:'sub'},where),
-    first?h('p',{class:'sub'},'בכל סבב האפליקציה מובילה אותך צעד אחרי צעד: קודם חזרות, אחר כך מושגים חדשים, וכל מושג מוסבר לפני שנשאלים עליו.'):null,
-    h('button',{class:'primary go',on:{click:()=>{lecFilter='all';if(!here)switchCourse(target.c.id);startSession(true)}}},'המשך ללמוד'),
+    first?h('p',{class:'sub'},'בכל סבב האפליקציה מובילה אותך צעד אחרי צעד: מושגים חדשים וחזרות משולבים. במושג חדש מנסים קודם לענות, ומיד אחר כך מקבלים את ההסבר.'):null,
+    h('button',{class:'primary go sun',on:{click:()=>{lecFilter='all';if(!here)switchCourse(target.c.id);startSession(true)}}},'המשך ללמוד'),
     others.length?h('p',{class:'sub other'},others.join(' · ')):null);
 }
 function renderHome(){
@@ -1769,7 +1854,7 @@ function renderHome(){
       h('div',{class:'row'},h('button',{on:{click:()=>startCram('all')}},'חזרה כללית על כל מה שלמדתי'),h('label',{class:'row sub',for:'examDate'},'תאריך',dateIn)));}
   // the exam date sets the pace, so it is a visible row, not hidden under "more options"
   const examRow=lrow('exam','מבחן',dl==null?'הוסף תאריך, והקצב יותאם אליו':dl<0?'תאריך המבחן עבר':dl===0?'המבחן היום':dl===1?'מחר':'עוד '+dl+' ימים',false,examBody);
-  app.append(h('div',{class:'stack'},...homeBanners(),heroPanel(),gardenTeaser(),h('div',{class:'stack',style:'gap:var(--s2)'},examRow,focus)));
+  app.append(h('div',{class:'stack'},...homeBanners(),heroPanel(),statTiles(),gardenTeaser(),h('div',{class:'stack',style:'gap:var(--s2)'},examRow,focus)));
 }
 // an expandable list row (home): title, one line of state, and the details inside; stays open across re-renders
 const ROW_OPEN={};
