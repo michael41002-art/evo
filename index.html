@@ -495,7 +495,7 @@ const AGAIN_CAP=3; // a card failed this many times in one day waits for tomorro
 const ROUND_SIZE=12, ROUND_NEW=5, ROUND_REV=2;
 const EX_EVERY=4, EX_MAX=1; // a game exercise after at least 4 steps, at most 1 per round
 let LS_P='evo-srs-progress-v1', LS_D='evo-srs-deck-v1';
-const APP_VERSION='1.27', NTFY_TOPIC='evo-vrthhej25epj';
+const APP_VERSION='1.28', NTFY_TOPIC='evo-vrthhej25epj';
 
 // ---------- state ----------
 let P=blankProgress(), D=blankDeck();
@@ -738,6 +738,12 @@ const LIVE_SITE=location.protocol==='https:'&&(location.hostname==='hazarot.web.
 const LS_LEG='evo-legacy', LS_UID='evo-uid', LS_ROLE='evo-role';
 const LEGACY=(()=>{try{let v=localStorage.getItem(LS_LEG);if(v==null){v=(localStorage.getItem('evo-srs-progress-v1')||localStorage.getItem('evo-srs-progress-v1:cell'))?'1':'0';localStorage.setItem(LS_LEG,v)}return v==='1'}catch(e){return false}})();
 let SYNC_URL=LIVE_SITE?REAL_SYNC:'';
+// v1.28: the old GitHub Pages address sends people on to the new one. A device that has progress here and never signed in
+// is asked to sign in first, so that its progress reaches the account before it leaves.
+const NEW_SITE='https://hazarot.web.app/', OLD_SITE=LIVE_SITE&&location.hostname!=='hazarot.web.app';
+function localProgress(){return !!P.updatedAt||COURSES.some(c=>{const p=lsLoad('evo-srs-progress-v1'+sfxOf(c.id));return !!(p&&p.updatedAt)})}
+function moveIfReady(){if(!OLD_SITE||(localProgress()&&!CLOUD))return;
+  const go=()=>{if(busy.progress||pend.progress||busy.deck||pend.deck){setTimeout(go,500);return}location.replace(NEW_SITE)};go()}
 // the web config of the Firebase project evo-study: public by design, access is decided by the database rules (כלים/firestore.rules)
 const FB_CONFIG={apiKey:'AIzaSyCZ96QxjOPJpOJEeYteveGhHLdC8rHffN8',authDomain:'evo-study-8c4b9.firebaseapp.com',projectId:'evo-study-8c4b9',storageBucket:'evo-study-8c4b9.firebasestorage.app',messagingSenderId:'1036183586370',appId:'1:1036183586370:web:cba5f47ac1ca6dff434fdb'};
 const FB_VER='10.14.1';
@@ -871,7 +877,7 @@ function cloudBoot(){ // resolves once it is known who is signed in (or that nob
     try{const f=await fbLoad();
       await new Promise(res=>{let first=true;f.au.onAuthStateChanged(f.auth,async u=>{
         try{await onAuth(u)}catch(e){}
-        if(first){first=false;res()}else{render();await pull();pullOthers();if(view!=='study')render()}})});
+        if(first){first=false;res()}else{render();await pull();await pullOthers();if(view!=='study')render();moveIfReady()}})});
     }catch(e){booting=null}
   })());
 }
@@ -892,7 +898,7 @@ function normD(d){return {v:1,updatedAt:d.updatedAt||0,edits:d.edits||{},added:d
 async function initStore(){
   const lp=lsLoad(LS_P);if(lp)P=normP(lp);const ld=lsLoad(LS_D);if(ld)D=normD(ld);rebuild();render();
   await cloudBoot();if(USER)render();
-  await pull();pullOthers();
+  await pull();await pullOthers();moveIfReady();
 }
 let lastDay=null;
 document.addEventListener('visibilitychange',()=>{
@@ -1061,6 +1067,7 @@ function homeBanners(){
   const dlx=daysToExam();
   if(dlx!=null&&dlx>=1&&dlx<=10)out.push(h('div',{class:'banner'},h('span',{},(dlx===1?'מחר המבחן':dlx+' ימים למבחן')+'. מעבר לחזרות: מבחן מסכם אחד ביום, ושליפה חופשית על ההרצאה החלשה.'),h('button',{on:{click:()=>{view='quiz';pmode='exam';exam=null;render();window.scrollTo(0,0)}}},'למבחן מסכם')));
   if(!LIVE_SITE)out.push(h('div',{class:'banner'},h('span',{},'עותק מקומי של האפליקציה: הוא לא מסתנכרן עם ההתקדמות האמיתית, ושום דבר כאן לא משנה אותה.')));
+  else if(OLD_SITE&&!USER)out.push(h('div',{class:'banner'},h('span',{},'האפליקציה עברה לכתובת חדשה: hazarot.web.app. כדי שההתקדמות שבמכשיר הזה לא תלך לאיבוד, היכנס כאן פעם אחת עם Google, ותועבר לשם אוטומטית.'),h('button',{on:{click:signIn}},'כניסה')));
   else if(cloudOn()&&!USER)out.push(h('div',{class:'banner'},h('span',{},LEGACY?'מעכשיו הסנכרון עובד עם חשבון Google. עד שתיכנס, מה שתלמד כאן נשמר רק במכשיר הזה.':'היכנס עם חשבון Google כדי לקבל את כל החומר ולשמור את ההתקדמות שלך.'),h('button',{on:{click:signIn}},'כניסה')));
   return out;
 }
